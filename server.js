@@ -25,6 +25,77 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+app.get('/', (req, res) => {
+  res.json({
+    name: 'CBT Simulator API',
+    version: '1.0.0',
+    description: 'Backend API for Computer-Based Testing Simulation Platform',
+    environment: process.env.NODE_ENV || 'development',
+    status: 'online',
+    timestamp: new Date(),
+    documentation: {
+      endpoints: {
+        auth: {
+          login: 'POST /api/auth/login',
+          '2fa_verify': 'POST /api/auth/verify-2fa',
+          logout: 'POST /api/auth/logout',
+          refresh: 'POST /api/auth/refresh',
+          me: 'GET /api/auth/me',
+          setup2fa: 'POST /api/auth/setup-2fa',
+          verify2faSetup: 'POST /api/auth/verify-2fa-setup',
+          disable2fa: 'POST /api/auth/disable-2fa'
+        },
+        superAdmin: {
+          base: '/api/super-admin',
+          schools: 'GET/POST /api/super-admin/schools',
+          admins: 'GET/POST /api/super-admin/admins',
+          students: 'GET /api/super-admin/students',
+          tickets: 'GET /api/super-admin/tickets',
+          dashboard: 'GET /api/super-admin/dashboard/stats',
+          reports: 'POST /api/super-admin/reports/generate'
+        },
+        admin: {
+          base: '/api/admin',
+          students: 'GET/POST /api/admin/students',
+          studentById: 'GET/PUT/DELETE /api/admin/students/:studentId',
+          subjects: 'POST/DELETE /api/admin/students/:studentId/subjects',
+          tickets: 'GET/POST /api/admin/tickets',
+          dashboard: 'GET /api/admin/dashboard/stats'
+        },
+        student: {
+          base: '/api/student',
+          login: 'POST /api/student/login',
+          profile: 'GET/PUT /api/student/profile',
+          changePassword: 'PUT /api/student/change-password',
+          subjects: 'GET /api/student/subjects',
+          examHistory: 'GET /api/student/exam-history'
+        },
+        exam: {
+          base: '/api/exam',
+          start: 'POST /api/exam/start',
+          submit: 'POST /api/exam/:examId/submit',
+          getExam: 'GET /api/exam/:examId',
+          tabSwitch: 'POST /api/exam/:examId/tab-switch',
+          saveAnswer: 'POST /api/exam/:examId/save-answer',
+          results: 'GET /api/exam/results/all',
+          performance: 'GET /api/exam/performance/summary'
+        },
+        debug: {
+          health: 'GET /health',
+          firebase: 'GET /debug/firebase',
+          env: 'GET /debug/env'
+        }
+      },
+      authentication: 'Cookie-based JWT authentication with 2FA support for admins'
+    },
+    links: {
+      health: '/health',
+      documentation: '/',
+      repository: 'https://github.com/yourusername/cbt-simulator-backend'
+    }
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/admin', adminRoutes);
@@ -35,7 +106,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    uptime: process.uptime()
   });
 });
 
@@ -70,7 +142,8 @@ app.use((req, res) => {
   res.status(404).json({ 
     message: 'Route not found',
     path: req.path,
-    method: req.method
+    method: req.method,
+    hint: 'Visit / for API documentation'
   });
 });
 
@@ -86,6 +159,7 @@ if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`API Documentation: http://localhost:${PORT}`);
   });
 }
 

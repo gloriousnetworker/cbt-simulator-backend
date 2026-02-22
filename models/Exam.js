@@ -1,4 +1,5 @@
 const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
 
 class Exam {
   static collection = 'exams';

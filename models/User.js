@@ -15,6 +15,9 @@ class User {
     const user = {
       id: userRef.id,
       ...userData,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorVerified: false,
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -65,6 +68,70 @@ class User {
     
     await userRef.update({
       ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async enable2FA(id, secret) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorEnabled: true,
+      twoFactorSecret: secret,
+      twoFactorVerified: false,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async verify2FA(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorVerified: true,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async disable2FA(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorVerified: false,
       updatedAt: timestamp
     });
     

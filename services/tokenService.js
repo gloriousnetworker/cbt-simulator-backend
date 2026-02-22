@@ -21,6 +21,14 @@ class TokenService {
     return { accessToken, refreshToken };
   }
 
+  static generateTempToken(user) {
+    return jwt.sign(
+      { id: user.id, temp: true },
+      process.env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+  }
+
   static verifyAccessToken(token) {
     try {
       return jwt.verify(token, process.env.JWT_SECRET);
@@ -32,6 +40,16 @@ class TokenService {
   static verifyRefreshToken(token) {
     try {
       return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  static verifyTempToken(token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (!decoded.temp) return null;
+      return decoded;
     } catch (error) {
       return null;
     }
