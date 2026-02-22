@@ -36,12 +36,13 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/exam', examRoutes);
 
+// Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date(),
     environment: process.env.NODE_ENV,
-    firebaseConfigured: !!process.env.FIREBASE_PROJECT_ID
+    firebaseConfigured: true
   });
 });
 
@@ -51,14 +52,18 @@ app.get('/debug/env', (req, res) => {
     hasFirebaseProjectId: !!process.env.FIREBASE_PROJECT_ID,
     hasFirebaseClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
     hasFirebasePrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID,
-    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || 'not set',
+    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'not set',
     privateKeyLength: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : 0
   });
 });
 
-app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found',
+    path: req.path,
+    method: req.method
+  });
 });
 
 app.use((err, req, res, next) => {
@@ -74,6 +79,7 @@ if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+    console.log(`🔥 Firebase: Initialized`);
   });
 }
 

@@ -26,7 +26,7 @@ A robust backend API for the Computer-Based Testing (CBT) Simulator application 
 
 1. **Clone the repository**
 
-git clone <your-repo-url>
+git clone <https://github.com/gloriousnetworker/cbt-simulator-backend.git>
 cd cbt-simulator-backend
 
 2. **Install dependencies**
