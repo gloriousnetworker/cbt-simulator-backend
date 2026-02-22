@@ -3,10 +3,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 
-// Load env vars - only in development
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
-  console.log('Loading .env file for development');
 }
 
 const authRoutes = require('./routes/authRoutes');
@@ -17,11 +15,9 @@ const examRoutes = require('./routes/examRoutes');
 
 const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -29,20 +25,32 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/exam', examRoutes);
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date(),
+    environment: process.env.NODE_ENV
+  });
+});
+
+app.get('/debug/firebase', (req, res) => {
+  const { db, auth } = require('./config/firebase');
+  res.json({
+    firebaseInitialized: !!db && !!auth,
+    dbIsNull: db === null,
+    authIsNull: auth === null,
     environment: process.env.NODE_ENV,
-    firebaseConfigured: true
+    hasEnvVars: {
+      projectId: !!process.env.FIREBASE_PROJECT_ID,
+      clientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: !!process.env.FIREBASE_PRIVATE_KEY
+    }
   });
 });
 
@@ -77,9 +85,7 @@ app.use((err, req, res, next) => {
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-    console.log(`🔥 Firebase: Initialized`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 

@@ -1,11 +1,19 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const TokenService = require('../services/tokenService');
-const { auth } = require('../config/firebase');
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    const { db } = require('../config/firebase');
+    
+    if (!db) {
+      return res.status(500).json({ 
+        message: 'Database connection error',
+        error: 'Firebase not initialized'
+      });
+    }
     
     const user = await User.findByEmail(email);
     
@@ -30,6 +38,7 @@ const login = async (req, res) => {
       tokens
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: error.message });
   }
 };

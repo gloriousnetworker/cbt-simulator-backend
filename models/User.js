@@ -1,9 +1,14 @@
 const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
 
 class User {
   static collection = 'users';
 
   static async create(userData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const userRef = db.collection(this.collection).doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
@@ -19,6 +24,10 @@ class User {
   }
 
   static async findByEmail(email) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const snapshot = await db.collection(this.collection)
       .where('email', '==', email)
       .limit(1)
@@ -33,6 +42,10 @@ class User {
   }
 
   static async findById(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const doc = await db.collection(this.collection).doc(id).get();
     if (!doc.exists) return null;
     
@@ -43,6 +56,10 @@ class User {
   }
 
   static async update(id, updateData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const userRef = db.collection(this.collection).doc(id);
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
@@ -59,6 +76,10 @@ class User {
   }
 
   static async delete(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     await db.collection(this.collection).doc(id).delete();
     return { message: 'User deleted successfully' };
   }
