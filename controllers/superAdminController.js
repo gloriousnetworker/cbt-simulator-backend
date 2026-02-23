@@ -49,6 +49,7 @@ const createAdmin = async (req, res) => {
       admin: adminWithoutPassword
     });
   } catch (error) {
+    console.error('Create admin error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -69,6 +70,7 @@ const getAllSchools = async (req, res) => {
     
     res.json({ schools: schoolsWithStats });
   } catch (error) {
+    console.error('Get all schools error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -90,6 +92,7 @@ const createSchool = async (req, res) => {
       school
     });
   } catch (error) {
+    console.error('Create school error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -104,17 +107,19 @@ const getAllAdmins = async (req, res) => {
       snapshot.docs.map(async (doc) => {
         const admin = { id: doc.id, ...doc.data() };
         const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(doc.id);
+        
+        const { password, ...adminWithoutPassword } = admin;
+        
         return {
-          ...admin,
+          ...adminWithoutPassword,
           subscriptionStatus
         };
       })
     );
     
-    const { password: _, ...adminsWithoutPassword } = admins;
-    
-    res.json({ admins: adminsWithoutPassword });
+    res.json({ admins });
   } catch (error) {
+    console.error('Get all admins error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -122,8 +127,12 @@ const getAllAdmins = async (req, res) => {
 const getAllStudents = async (req, res) => {
   try {
     const students = await Student.findAll();
-    res.json({ students });
+    
+    const studentsWithoutPassword = students.map(({ password, ...rest }) => rest);
+    
+    res.json({ students: studentsWithoutPassword });
   } catch (error) {
+    console.error('Get all students error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -134,6 +143,7 @@ const getTickets = async (req, res) => {
     const tickets = await Ticket.findAll({ status });
     res.json({ tickets });
   } catch (error) {
+    console.error('Get tickets error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -160,6 +170,7 @@ const respondToTicket = async (req, res) => {
       ticket: updatedTicket
     });
   } catch (error) {
+    console.error('Respond to ticket error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -176,6 +187,7 @@ const updateTicketStatus = async (req, res) => {
       ticket
     });
   } catch (error) {
+    console.error('Update ticket status error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -217,6 +229,7 @@ const getDashboardStats = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Dashboard stats error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -244,11 +257,12 @@ const generateReport = async (req, res) => {
         
       case 'student':
         const students = await Student.findAll();
+        const studentsWithoutPassword = students.map(({ password, ...rest }) => rest);
         report = {
           type: 'Student Report',
           generatedAt: new Date(),
-          students,
-          totalStudents: students.length
+          students: studentsWithoutPassword,
+          totalStudents: studentsWithoutPassword.length
         };
         break;
         
@@ -275,25 +289,27 @@ const generateReport = async (req, res) => {
           type: 'Revenue Report',
           generatedAt: new Date(),
           totalRevenue: admins.docs.reduce((sum, doc) => sum + (doc.data().subscription?.amount || 0), 0),
-          subscriptions: admins.docs.map(doc => ({
-            admin: doc.data().name,
-            plan: doc.data().subscription?.plan,
-            amount: doc.data().subscription?.amount,
-            date: doc.data().subscription?.startDate
-          }))
+          subscriptions: admins.docs.map(doc => {
+            const admin = doc.data();
+            const { password, ...adminWithoutPassword } = admin;
+            return {
+              ...adminWithoutPassword,
+              subscription: admin.subscription
+            };
+          })
         };
         break;
     }
     
     if (format === 'csv') {
-      // Convert to CSV
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=${type}-report.csv`);
+      res.setHeader('Content-Disposition', `attachment; filename=${type}-report-${Date.now()}.csv`);
       return res.send(report);
     }
     
     res.json(report);
   } catch (error) {
+    console.error('Report generation error:', error);
     res.status(500).json({ message: error.message });
   }
 };

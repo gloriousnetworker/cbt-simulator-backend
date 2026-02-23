@@ -1,12 +1,21 @@
 const bcrypt = require('bcryptjs');
 const Student = require('../models/Student');
 const Exam = require('../models/Exam');
+const TokenService = require('../services/tokenService');
+const { db } = require('../config/firebase');
 
 const studentLogin = async (req, res) => {
   try {
     const { loginId, nin, password } = req.body;
     
     let student;
+    
+    if (!db) {
+      return res.status(500).json({ 
+        message: 'Database connection error',
+        error: 'Firebase not initialized'
+      });
+    }
     
     if (loginId) {
       const snapshot = await db.collection('students')
@@ -139,6 +148,12 @@ const getExamHistory = async (req, res) => {
     
     res.json({ exams });
   } catch (error) {
+    if (error.code === 'FAILED_PRECONDITION') {
+      return res.status(400).json({ 
+        message: 'Please create the required Firestore index first',
+        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 };

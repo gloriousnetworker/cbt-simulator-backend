@@ -3,25 +3,45 @@ const User = require('../models/User');
 const Student = require('../models/Student');
 const Exam = require('../models/Exam');
 const Ticket = require('../models/Ticket');
+const School = require('../models/School');
+
+const removeUndefined = (obj) => {
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+};
 
 const createStudent = async (req, res) => {
   try {
     const { firstName, lastName, middleName, nin, phone, dateOfBirth, class: studentClass } = req.body;
     
+    const school = await School.findById(req.user.schoolId);
+    
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+    
+    const schoolDomain = school.email.split('@')[1];
+    
     const loginId = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-    const email = `${loginId}@${req.user.schoolName?.toLowerCase().replace(/\s+/g, '') || 'school'}.edu.ng`;
+    const email = `${loginId}@${schoolDomain}`;
     
     let finalLoginId = loginId;
     let counter = 1;
     
-    while (await Student.findAll({ loginId: finalLoginId }).length > 0) {
+    while (true) {
+      const existingStudents = await Student.findAll({ loginId: finalLoginId });
+      if (existingStudents.length === 0) break;
       finalLoginId = `${loginId}${counter.toString().padStart(3, '0')}`;
       counter++;
     }
     
     const hashedPassword = await bcrypt.hash('123456', 10);
     
-    const student = await Student.create({
+    const studentData = removeUndefined({
       firstName,
       lastName,
       middleName,
@@ -38,6 +58,8 @@ const createStudent = async (req, res) => {
       subjects: ['Mathematics', 'English']
     });
     
+    const student = await Student.create(studentData);
+    
     const { password: _, ...studentWithoutPassword } = student;
     
     res.status(201).json({
@@ -46,6 +68,7 @@ const createStudent = async (req, res) => {
       credentials: {
         loginId: finalLoginId,
         email,
+        nin: nin || 'Not provided',
         password: '123456'
       }
     });
@@ -87,6 +110,13 @@ const getStudentById = async (req, res) => {
       performance
     });
   } catch (error) {
+    if (error.code === 'FAILED_PRECONDITION') {
+      return res.status(400).json({ 
+        message: 'Please create the required Firestore index first',
+        error: error.message,
+        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -101,7 +131,8 @@ const updateStudent = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
     
-    const updatedStudent = await Student.update(studentId, req.body);
+    const updateData = removeUndefined(req.body);
+    const updatedStudent = await Student.update(studentId, updateData);
     
     const { password: _, ...studentWithoutPassword } = updatedStudent;
     
@@ -136,7 +167,7 @@ const createTicket = async (req, res) => {
   try {
     const { subject, category, priority, description } = req.body;
     
-    const ticket = await Ticket.create({
+    const ticketData = removeUndefined({
       subject,
       category,
       priority,
@@ -145,6 +176,8 @@ const createTicket = async (req, res) => {
       createdBy: req.user.id,
       createdByType: 'admin'
     });
+    
+    const ticket = await Ticket.create(ticketData);
     
     res.status(201).json({
       message: 'Ticket created successfully',
