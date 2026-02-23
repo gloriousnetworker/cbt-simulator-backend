@@ -41,6 +41,7 @@ try {
   }
 
   db = admin.firestore();
+  db.settings({ ignoreUndefinedProperties: true });
   auth = admin.auth();
 
 } catch (error) {

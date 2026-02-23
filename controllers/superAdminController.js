@@ -4,6 +4,7 @@ const School = require('../models/School');
 const Student = require('../models/Student');
 const Ticket = require('../models/Ticket');
 const SubscriptionService = require('../services/subscriptionService');
+const { db } = require('../config/firebase');
 
 const createAdmin = async (req, res) => {
   try {
