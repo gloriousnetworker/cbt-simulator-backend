@@ -5,6 +5,10 @@ class Student {
   static collection = 'students';
 
   static async create(studentData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const studentRef = db.collection(this.collection).doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
@@ -20,6 +24,10 @@ class Student {
   }
 
   static async findAll(filters = {}) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     let query = db.collection(this.collection);
     
     if (filters.schoolId) {
@@ -30,6 +38,10 @@ class Student {
       query = query.where('class', '==', filters.class);
     }
     
+    if (filters.loginId) {
+      query = query.where('loginId', '==', filters.loginId);
+    }
+    
     const snapshot = await query.get();
     return snapshot.docs.map(doc => ({
       id: doc.id,
@@ -38,6 +50,10 @@ class Student {
   }
 
   static async findById(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const doc = await db.collection(this.collection).doc(id).get();
     if (!doc.exists) return null;
     
@@ -48,6 +64,10 @@ class Student {
   }
 
   static async update(id, updateData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const studentRef = db.collection(this.collection).doc(id);
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
@@ -64,11 +84,19 @@ class Student {
   }
 
   static async delete(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     await db.collection(this.collection).doc(id).delete();
     return { message: 'Student deleted successfully' };
   }
 
   static async getStudentCount(schoolId) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
     const snapshot = await db.collection(this.collection)
       .where('schoolId', '==', schoolId)
       .get();

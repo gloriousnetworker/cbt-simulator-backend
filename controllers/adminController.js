@@ -18,27 +18,41 @@ const createStudent = async (req, res) => {
   try {
     const { firstName, lastName, middleName, nin, phone, dateOfBirth, class: studentClass } = req.body;
     
+    if (!firstName || !lastName || !studentClass) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: firstName, lastName, and class are required' 
+      });
+    }
+    
     const school = await School.findById(req.user.schoolId);
     
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
     
-    const schoolDomain = school.email.split('@')[1];
+    const schoolDomain = school.email ? school.email.split('@')[1] : 'school.edu.ng';
     
-    const loginId = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-    const email = `${loginId}@${schoolDomain}`;
-    
-    let finalLoginId = loginId;
+    const baseLoginId = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+    let finalLoginId = baseLoginId;
     let counter = 1;
+    const maxAttempts = 100;
     
-    while (true) {
+    while (counter <= maxAttempts) {
       const existingStudents = await Student.findAll({ loginId: finalLoginId });
-      if (existingStudents.length === 0) break;
-      finalLoginId = `${loginId}${counter.toString().padStart(3, '0')}`;
+      if (existingStudents.length === 0) {
+        break;
+      }
+      finalLoginId = `${baseLoginId}${counter.toString().padStart(3, '0')}`;
       counter++;
     }
     
+    if (counter > maxAttempts) {
+      return res.status(500).json({ 
+        message: 'Unable to generate unique login ID after multiple attempts' 
+      });
+    }
+    
+    const email = `${finalLoginId}@${schoolDomain}`;
     const hashedPassword = await bcrypt.hash('123456', 10);
     
     const studentData = removeUndefined({
@@ -60,7 +74,7 @@ const createStudent = async (req, res) => {
     
     const student = await Student.create(studentData);
     
-    const { password: _, ...studentWithoutPassword } = student;
+    const { password, ...studentWithoutPassword } = student;
     
     res.status(201).json({
       message: 'Student created successfully',
@@ -73,6 +87,7 @@ const createStudent = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Create student error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -85,6 +100,7 @@ const getAllStudents = async (req, res) => {
     
     res.json({ students: studentsWithoutPassword });
   } catch (error) {
+    console.error('Get all students error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -102,7 +118,7 @@ const getStudentById = async (req, res) => {
     const exams = await Exam.findByStudent(studentId);
     const performance = await Exam.getResults(studentId);
     
-    const { password: _, ...studentWithoutPassword } = student;
+    const { password, ...studentWithoutPassword } = student;
     
     res.json({
       student: studentWithoutPassword,
@@ -110,10 +126,10 @@ const getStudentById = async (req, res) => {
       performance
     });
   } catch (error) {
+    console.error('Get student by ID error:', error);
     if (error.code === 'FAILED_PRECONDITION') {
       return res.status(400).json({ 
         message: 'Please create the required Firestore index first',
-        error: error.message,
         link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
       });
     }
@@ -134,13 +150,14 @@ const updateStudent = async (req, res) => {
     const updateData = removeUndefined(req.body);
     const updatedStudent = await Student.update(studentId, updateData);
     
-    const { password: _, ...studentWithoutPassword } = updatedStudent;
+    const { password, ...studentWithoutPassword } = updatedStudent;
     
     res.json({
       message: 'Student updated successfully',
       student: studentWithoutPassword
     });
   } catch (error) {
+    console.error('Update student error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -159,6 +176,7 @@ const deleteStudent = async (req, res) => {
     
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {
+    console.error('Delete student error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -184,6 +202,7 @@ const createTicket = async (req, res) => {
       ticket
     });
   } catch (error) {
+    console.error('Create ticket error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -193,6 +212,7 @@ const getTickets = async (req, res) => {
     const tickets = await Ticket.findAll({ schoolId: req.user.schoolId });
     res.json({ tickets });
   } catch (error) {
+    console.error('Get tickets error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -219,6 +239,7 @@ const replyToTicket = async (req, res) => {
       ticket: updatedTicket
     });
   } catch (error) {
+    console.error('Reply to ticket error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -266,6 +287,7 @@ const getDashboardStats = async (req, res) => {
       subjectPerformance
     });
   } catch (error) {
+    console.error('Dashboard stats error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -296,6 +318,7 @@ const addStudentSubject = async (req, res) => {
       subjects: updatedStudent.subjects
     });
   } catch (error) {
+    console.error('Add subject error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -324,6 +347,7 @@ const removeStudentSubject = async (req, res) => {
       subjects: updatedStudent.subjects
     });
   } catch (error) {
+    console.error('Remove subject error:', error);
     res.status(500).json({ message: error.message });
   }
 };
