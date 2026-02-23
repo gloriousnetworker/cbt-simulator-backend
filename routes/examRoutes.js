@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const examController = require('../controllers/examController');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticateStudent } = require('../middleware/studentAuthMiddleware');
 
-router.use(authenticate);
-router.use(authorize('student'));
+router.use(authenticateStudent);
 
 router.post('/start', examController.startExam);
 router.post('/:examId/submit', examController.submitExam);

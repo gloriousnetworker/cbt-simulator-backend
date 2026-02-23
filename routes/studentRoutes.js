@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/studentController');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticateStudent } = require('../middleware/studentAuthMiddleware');
 
 router.post('/login', studentController.studentLogin);
 
-router.use(authenticate);
-router.use(authorize('student'));
+router.use(authenticateStudent);
 
 router.get('/profile', studentController.getProfile);
 router.put('/profile', studentController.updateProfile);

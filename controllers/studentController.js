@@ -55,7 +55,7 @@ const studentLogin = async (req, res) => {
     
     TokenService.setTokenCookies(res, tokens);
     
-    const { password: _, ...studentWithoutPassword } = student;
+    const { password: pwd, ...studentWithoutPassword } = student;
     
     res.json({
       message: 'Login successful',
@@ -65,27 +65,35 @@ const studentLogin = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Student login error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 const getProfile = async (req, res) => {
   try {
-    const student = await Student.findById(req.user.id);
+    const student = await Student.findById(req.student.id);
     
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
     
-    const performance = await Exam.getResults(req.user.id);
+    const performance = await Exam.getResults(req.student.id);
     
-    const { password: _, ...studentWithoutPassword } = student;
+    const { password: pwd, ...studentWithoutPassword } = student;
     
     res.json({
       student: studentWithoutPassword,
       performance
     });
   } catch (error) {
+    console.error('Get profile error:', error);
+    if (error.code === 'FAILED_PRECONDITION') {
+      return res.status(400).json({ 
+        message: 'Please create the required Firestore index first',
+        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -94,18 +102,19 @@ const updateProfile = async (req, res) => {
   try {
     const { phone, dateOfBirth } = req.body;
     
-    const student = await Student.update(req.user.id, {
+    const student = await Student.update(req.student.id, {
       phone,
       dateOfBirth
     });
     
-    const { password: _, ...studentWithoutPassword } = student;
+    const { password, ...studentWithoutPassword } = student;
     
     res.json({
       message: 'Profile updated successfully',
       student: studentWithoutPassword
     });
   } catch (error) {
+    console.error('Update profile error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -114,7 +123,7 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
-    const student = await Student.findById(req.user.id);
+    const student = await Student.findById(req.student.id);
     
     const isValidPassword = await bcrypt.compare(currentPassword, student.password);
     
@@ -124,30 +133,33 @@ const changePassword = async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     
-    await Student.update(req.user.id, { password: hashedPassword });
+    await Student.update(req.student.id, { password: hashedPassword });
     
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
+    console.error('Change password error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 const getSubjects = async (req, res) => {
   try {
-    const student = await Student.findById(req.user.id);
+    const student = await Student.findById(req.student.id);
     
     res.json({ subjects: student.subjects || [] });
   } catch (error) {
+    console.error('Get subjects error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 const getExamHistory = async (req, res) => {
   try {
-    const exams = await Exam.findByStudent(req.user.id);
+    const exams = await Exam.findByStudent(req.student.id);
     
     res.json({ exams });
   } catch (error) {
+    console.error('Get exam history error:', error);
     if (error.code === 'FAILED_PRECONDITION') {
       return res.status(400).json({ 
         message: 'Please create the required Firestore index first',

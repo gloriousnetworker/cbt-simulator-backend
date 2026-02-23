@@ -5,14 +5,18 @@ const startExam = async (req, res) => {
   try {
     const { subject, examType, duration } = req.body;
     
-    const student = await Student.findById(req.user.id);
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
     
     if (!student.subjects?.includes(subject)) {
       return res.status(403).json({ message: 'You are not enrolled in this subject' });
     }
     
     const exam = await Exam.create({
-      studentId: req.user.id,
+      studentId: req.student.id,
       schoolId: student.schoolId,
       subject,
       examType,
@@ -28,6 +32,7 @@ const startExam = async (req, res) => {
       exam
     });
   } catch (error) {
+    console.error('Start exam error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -39,7 +44,7 @@ const submitExam = async (req, res) => {
     
     const exam = await Exam.findById(examId);
     
-    if (!exam || exam.studentId !== req.user.id) {
+    if (!exam || exam.studentId !== req.student.id) {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
@@ -66,6 +71,7 @@ const submitExam = async (req, res) => {
       exam: updatedExam
     });
   } catch (error) {
+    console.error('Submit exam error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -76,12 +82,13 @@ const getExamById = async (req, res) => {
     
     const exam = await Exam.findById(examId);
     
-    if (!exam || exam.studentId !== req.user.id) {
+    if (!exam || exam.studentId !== req.student.id) {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
     res.json({ exam });
   } catch (error) {
+    console.error('Get exam by ID error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -92,7 +99,7 @@ const recordTabSwitch = async (req, res) => {
     
     const exam = await Exam.findById(examId);
     
-    if (!exam || exam.studentId !== req.user.id) {
+    if (!exam || exam.studentId !== req.student.id) {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
@@ -117,6 +124,7 @@ const recordTabSwitch = async (req, res) => {
       autoSubmitted
     });
   } catch (error) {
+    console.error('Record tab switch error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -128,7 +136,7 @@ const saveAnswer = async (req, res) => {
     
     const exam = await Exam.findById(examId);
     
-    if (!exam || exam.studentId !== req.user.id) {
+    if (!exam || exam.studentId !== req.student.id) {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
@@ -138,13 +146,14 @@ const saveAnswer = async (req, res) => {
     
     res.json({ message: 'Answer saved' });
   } catch (error) {
+    console.error('Save answer error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 const getResults = async (req, res) => {
   try {
-    const exams = await Exam.findByStudent(req.user.id);
+    const exams = await Exam.findByStudent(req.student.id);
     
     const results = exams
       .filter(exam => exam.status === 'completed')
@@ -158,15 +167,29 @@ const getResults = async (req, res) => {
     
     res.json({ results });
   } catch (error) {
+    console.error('Get results error:', error);
+    if (error.code === 'FAILED_PRECONDITION') {
+      return res.status(400).json({ 
+        message: 'Please create the required Firestore index first',
+        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 };
 
 const getPerformance = async (req, res) => {
   try {
-    const performance = await Exam.getResults(req.user.id);
+    const performance = await Exam.getResults(req.student.id);
     res.json({ performance });
   } catch (error) {
+    console.error('Get performance error:', error);
+    if (error.code === 'FAILED_PRECONDITION') {
+      return res.status(400).json({ 
+        message: 'Please create the required Firestore index first',
+        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
+      });
+    }
     res.status(500).json({ message: error.message });
   }
 };
