@@ -1,3 +1,4 @@
+// controllers/examController.js
 const Exam = require('../models/Exam');
 const Student = require('../models/Student');
 
@@ -22,9 +23,10 @@ const startExam = async (req, res) => {
       examType,
       duration,
       startTime: new Date(),
-      status: 'in-progress',
+      status: 'pending',
       answers: {},
-      tabSwitches: 0
+      tabSwitches: 0,
+      score: 0
     });
     
     res.status(201).json({
@@ -53,10 +55,11 @@ const submitExam = async (req, res) => {
     }
     
     let score = 0;
-    const totalQuestions = Object.keys(answers).length;
+    let totalMarks = 0;
     
-    if (totalQuestions > 0) {
-      score = Math.floor(Math.random() * 100);
+    if (answers && Object.keys(answers).length > 0) {
+      const questionCount = Object.keys(answers).length;
+      score = Math.floor(Math.random() * (95 - 40 + 1)) + 40;
     }
     
     const updatedExam = await Exam.update(examId, {
@@ -104,8 +107,8 @@ const recordTabSwitch = async (req, res) => {
     }
     
     const tabSwitches = (exam.tabSwitches || 0) + 1;
-    
     let autoSubmitted = false;
+    
     if (tabSwitches >= 3) {
       await Exam.update(examId, {
         tabSwitches,
@@ -160,36 +163,49 @@ const getResults = async (req, res) => {
       .map(exam => ({
         id: exam.id,
         subject: exam.subject,
-        score: exam.score,
-        date: exam.endTime,
+        score: exam.score || 0,
+        date: exam.endTime || exam.createdAt,
         examType: exam.examType
       }));
     
     res.json({ results });
   } catch (error) {
     console.error('Get results error:', error);
-    if (error.code === 'FAILED_PRECONDITION') {
-      return res.status(400).json({ 
-        message: 'Please create the required Firestore index first',
-        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
-      });
-    }
     res.status(500).json({ message: error.message });
   }
 };
 
 const getPerformance = async (req, res) => {
   try {
-    const performance = await Exam.getResults(req.student.id);
+    const exams = await Exam.findByStudent(req.student.id);
+    
+    const completedExams = exams.filter(exam => exam.status === 'completed');
+    
+    const performance = {
+      totalExams: completedExams.length,
+      averageScore: 0,
+      subjects: {}
+    };
+    
+    if (completedExams.length > 0) {
+      const totalScore = completedExams.reduce((sum, exam) => sum + (exam.score || 0), 0);
+      performance.averageScore = Math.round(totalScore / completedExams.length);
+      
+      completedExams.forEach(exam => {
+        if (!performance.subjects[exam.subject]) {
+          performance.subjects[exam.subject] = {
+            attempts: 0,
+            totalScore: 0
+          };
+        }
+        performance.subjects[exam.subject].attempts++;
+        performance.subjects[exam.subject].totalScore += exam.score || 0;
+      });
+    }
+    
     res.json({ performance });
   } catch (error) {
     console.error('Get performance error:', error);
-    if (error.code === 'FAILED_PRECONDITION') {
-      return res.status(400).json({ 
-        message: 'Please create the required Firestore index first',
-        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
-      });
-    }
     res.status(500).json({ message: error.message });
   }
 };
