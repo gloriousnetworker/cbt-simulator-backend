@@ -18,12 +18,35 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+// Dynamic CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://mts-waec-super-admin.vercel.app',
+  'https://waec-cbt-simulator.vercel.app',
+  'https://waec-cbt-admin.vercel.app'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.log('Blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 app.get('/', (req, res) => {
   res.json({
@@ -33,6 +56,10 @@ app.get('/', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     status: 'online',
     timestamp: new Date(),
+    cors: {
+      allowedOrigins,
+      credentials: true
+    },
     documentation: {
       endpoints: {
         auth: {
@@ -138,6 +165,7 @@ app.get('/debug/env', (req, res) => {
   });
 });
 
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ 
     message: 'Route not found',
@@ -147,6 +175,7 @@ app.use((req, res) => {
   });
 });
 
+// Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({ 
@@ -155,11 +184,13 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Start server only if not in production (for Vercel)
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`API Documentation: http://localhost:${PORT}`);
+    console.log('Allowed origins:', allowedOrigins);
   });
 }
 

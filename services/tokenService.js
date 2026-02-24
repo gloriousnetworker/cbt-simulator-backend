@@ -56,24 +56,61 @@ class TokenService {
   }
 
   static setTokenCookies(res, tokens) {
-    res.cookie('accessToken', tokens.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // For localhost development
+    if (!isProduction) {
+      res.cookie('accessToken', tokens.accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+        path: '/'
+      });
 
-    res.cookie('refreshToken', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+    } else {
+      // For production (Vercel) - cross-site cookies
+      res.cookie('accessToken', tokens.accessToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none', // CRITICAL for cross-site requests
+        maxAge: 15 * 60 * 1000,
+        path: '/',
+        domain: '.vercel.app' // Allow all vercel.app subdomains
+      });
+
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none', // CRITICAL for cross-site requests
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+        domain: '.vercel.app' // Allow all vercel.app subdomains
+      });
+    }
+
+    // Return tokens for Postman/clients that don't handle cookies
+    return tokens;
   }
 
   static clearTokenCookies(res) {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: isProduction ? '.vercel.app' : undefined
+    });
+    res.clearCookie('refreshToken', {
+      path: '/',
+      domain: isProduction ? '.vercel.app' : undefined
+    });
   }
 }
 
