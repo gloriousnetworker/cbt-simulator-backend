@@ -76,23 +76,24 @@ class TokenService {
         path: '/'
       });
     } else {
-      // For production (Vercel) - cross-site cookies
+      // For production (Vercel) - IMPORTANT: Don't set domain for Vercel serverless
+      // Vercel handles domains differently, and setting domain can cause issues
       res.cookie('accessToken', tokens.accessToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'none', // CRITICAL for cross-site requests
+        sameSite: 'none',
         maxAge: 15 * 60 * 1000,
-        path: '/',
-        domain: '.vercel.app' // Allow all vercel.app subdomains
+        path: '/'
+        // REMOVED: domain: '.vercel.app'
       });
 
       res.cookie('refreshToken', tokens.refreshToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'none', // CRITICAL for cross-site requests
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/',
-        domain: '.vercel.app' // Allow all vercel.app subdomains
+        path: '/'
+        // REMOVED: domain: '.vercel.app'
       });
     }
 
@@ -105,11 +106,11 @@ class TokenService {
     
     res.clearCookie('accessToken', {
       path: '/',
-      domain: isProduction ? '.vercel.app' : undefined
+      domain: isProduction ? undefined : undefined // Remove domain for production
     });
     res.clearCookie('refreshToken', {
       path: '/',
-      domain: isProduction ? '.vercel.app' : undefined
+      domain: isProduction ? undefined : undefined // Remove domain for production
     });
   }
 }

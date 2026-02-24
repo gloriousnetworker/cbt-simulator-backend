@@ -27,6 +27,7 @@ const allowedOrigins = [
   'https://waec-cbt-admin.vercel.app'
 ];
 
+// In server.js, update the corsOptions:
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, Postman, curl)
@@ -42,7 +43,8 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 // Apply CORS middleware - this handles OPTIONS preflight automatically
