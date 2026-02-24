@@ -1,0 +1,105 @@
+// models/Question.js
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class Question {
+  static collection = 'questions';
+
+  static async create(questionData) {
+    const questionRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const question = {
+      id: questionRef.id,
+      ...questionData,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await questionRef.set(question);
+    return question;
+  }
+
+  static async findAll(filters = {}) {
+    let query = db.collection(this.collection);
+    
+    if (filters.subjectId) {
+      query = query.where('subjectId', '==', filters.subjectId);
+    }
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    }
+    
+    if (filters.class) {
+      query = query.where('class', '==', filters.class);
+    }
+    
+    if (filters.examType) {
+      query = query.where('examType', '==', filters.examType);
+    }
+    
+    if (filters.difficulty) {
+      query = query.where('difficulty', '==', filters.difficulty);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findBySubject(subjectId) {
+    const snapshot = await db.collection(this.collection)
+      .where('subjectId', '==', subjectId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findById(id) {
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async update(id, updateData) {
+    const questionRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await questionRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await questionRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'Question deleted successfully' };
+  }
+
+  static async countBySubject(subjectId) {
+    const snapshot = await db.collection(this.collection)
+      .where('subjectId', '==', subjectId)
+      .get();
+    
+    return snapshot.size;
+  }
+}
+
+module.exports = Question;

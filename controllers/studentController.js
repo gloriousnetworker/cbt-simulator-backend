@@ -1,5 +1,7 @@
+// controllers/studentController.js
 const bcrypt = require('bcryptjs');
 const Student = require('../models/Student');
+const Subject = require('../models/Subject');
 const Exam = require('../models/Exam');
 const TokenService = require('../services/tokenService');
 const { db } = require('../config/firebase');
@@ -146,7 +148,23 @@ const getSubjects = async (req, res) => {
   try {
     const student = await Student.findById(req.student.id);
     
-    res.json({ subjects: student.subjects || [] });
+    const subjectNames = student.subjects || [];
+    
+    const subjects = [];
+    for (const name of subjectNames) {
+      const subjectList = await Subject.findAll({ 
+        schoolId: student.schoolId,
+        name: name
+      });
+      if (subjectList.length > 0) {
+        subjects.push(subjectList[0]);
+      }
+    }
+    
+    res.json({ 
+      subjects: subjects,
+      subjectNames: subjectNames 
+    });
   } catch (error) {
     console.error('Get subjects error:', error);
     res.status(500).json({ message: error.message });

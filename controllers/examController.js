@@ -1,10 +1,12 @@
 // controllers/examController.js
 const Exam = require('../models/Exam');
 const Student = require('../models/Student');
+const Subject = require('../models/Subject');
+const Question = require('../models/Question');
 
 const startExam = async (req, res) => {
   try {
-    const { subject, examType, duration } = req.body;
+    const { subjectId, examType, duration, questionCount = 50 } = req.body;
     
     const student = await Student.findById(req.student.id);
     
@@ -12,26 +14,68 @@ const startExam = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
     
-    if (!student.subjects?.includes(subject)) {
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject || subject.schoolId !== student.schoolId) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    if (!student.subjects?.includes(subject.name)) {
       return res.status(403).json({ message: 'You are not enrolled in this subject' });
     }
+    
+    const questions = await Question.findAll({ 
+      subjectId: subjectId,
+      class: student.class,
+      schoolId: student.schoolId
+    });
+    
+    if (questions.length === 0) {
+      return res.status(404).json({ message: 'No questions available for this subject' });
+    }
+    
+    const shuffledQuestions = questions.sort(() => 0.5 - Math.random());
+    const selectedQuestions = shuffledQuestions.slice(0, Math.min(questionCount, shuffledQuestions.length));
+    
+    const examQuestions = selectedQuestions.map(q => ({
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      marks: q.marks || 1,
+      difficulty: q.difficulty,
+      topic: q.topic
+    }));
     
     const exam = await Exam.create({
       studentId: req.student.id,
       schoolId: student.schoolId,
-      subject,
+      subjectId: subjectId,
+      subject: subject.name,
       examType,
       duration,
+      questionCount: examQuestions.length,
+      questions: examQuestions,
       startTime: new Date(),
       status: 'pending',
       answers: {},
       tabSwitches: 0,
-      score: 0
+      score: 0,
+      totalMarks: examQuestions.reduce((sum, q) => sum + (q.marks || 1), 0)
     });
     
     res.status(201).json({
       message: 'Exam started',
-      exam
+      exam: {
+        id: exam.id,
+        subject: exam.subject,
+        subjectId: exam.subjectId,
+        examType: exam.examType,
+        duration: exam.duration,
+        questionCount: exam.questionCount,
+        questions: exam.questions,
+        startTime: exam.startTime,
+        status: exam.status
+      }
     });
   } catch (error) {
     console.error('Start exam error:', error);
@@ -54,24 +98,37 @@ const submitExam = async (req, res) => {
       return res.status(400).json({ message: 'Exam already submitted' });
     }
     
-    let score = 0;
-    let totalMarks = 0;
+    const questions = exam.questions || [];
+    let totalScore = 0;
     
-    if (answers && Object.keys(answers).length > 0) {
-      const questionCount = Object.keys(answers).length;
-      score = Math.floor(Math.random() * (95 - 40 + 1)) + 40;
-    }
+    questions.forEach(question => {
+      const userAnswer = answers[question.id];
+      if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+        totalScore += question.marks || 1;
+      }
+    });
+    
+    const percentage = ((totalScore / exam.totalMarks) * 100).toFixed(1);
     
     const updatedExam = await Exam.update(examId, {
       answers,
-      score,
+      score: totalScore,
+      percentage: parseFloat(percentage),
       status: 'completed',
       endTime: new Date()
     });
     
     res.json({
       message: 'Exam submitted successfully',
-      exam: updatedExam
+      exam: {
+        id: updatedExam.id,
+        subject: updatedExam.subject,
+        examType: updatedExam.examType,
+        score: updatedExam.score,
+        totalMarks: updatedExam.totalMarks,
+        percentage: updatedExam.percentage,
+        endTime: updatedExam.endTime
+      }
     });
   } catch (error) {
     console.error('Submit exam error:', error);
@@ -110,11 +167,15 @@ const recordTabSwitch = async (req, res) => {
     let autoSubmitted = false;
     
     if (tabSwitches >= 3) {
+      const score = exam.score || 0;
+      const percentage = exam.totalMarks ? ((score / exam.totalMarks) * 100).toFixed(1) : 0;
+      
       await Exam.update(examId, {
         tabSwitches,
         status: 'completed',
         endTime: new Date(),
-        autoSubmitted: true
+        autoSubmitted: true,
+        percentage: parseFloat(percentage)
       });
       autoSubmitted = true;
     } else {
@@ -163,7 +224,10 @@ const getResults = async (req, res) => {
       .map(exam => ({
         id: exam.id,
         subject: exam.subject,
+        subjectId: exam.subjectId,
         score: exam.score || 0,
+        totalMarks: exam.totalMarks || 0,
+        percentage: exam.percentage || 0,
         date: exam.endTime || exam.createdAt,
         examType: exam.examType
       }));
@@ -184,22 +248,28 @@ const getPerformance = async (req, res) => {
     const performance = {
       totalExams: completedExams.length,
       averageScore: 0,
+      averagePercentage: 0,
       subjects: {}
     };
     
     if (completedExams.length > 0) {
       const totalScore = completedExams.reduce((sum, exam) => sum + (exam.score || 0), 0);
+      const totalPercentage = completedExams.reduce((sum, exam) => sum + (exam.percentage || 0), 0);
+      
       performance.averageScore = Math.round(totalScore / completedExams.length);
+      performance.averagePercentage = Math.round(totalPercentage / completedExams.length);
       
       completedExams.forEach(exam => {
         if (!performance.subjects[exam.subject]) {
           performance.subjects[exam.subject] = {
             attempts: 0,
-            totalScore: 0
+            totalScore: 0,
+            totalPercentage: 0
           };
         }
         performance.subjects[exam.subject].attempts++;
         performance.subjects[exam.subject].totalScore += exam.score || 0;
+        performance.subjects[exam.subject].totalPercentage += exam.percentage || 0;
       });
     }
     

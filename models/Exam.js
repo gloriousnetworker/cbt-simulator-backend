@@ -1,5 +1,7 @@
+// models/Exam.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
+const Question = require('./Question');
 
 class Exam {
   static collection = 'exams';
@@ -96,6 +98,21 @@ class Exam {
     }
     
     return results;
+  }
+
+  static async calculateScore(answers, questions) {
+    let totalScore = 0;
+    let totalMarks = 0;
+    
+    questions.forEach(question => {
+      totalMarks += question.marks || 1;
+      const userAnswer = answers[question.id];
+      if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+        totalScore += question.marks || 1;
+      }
+    });
+    
+    return { totalScore, totalMarks };
   }
 }
 
