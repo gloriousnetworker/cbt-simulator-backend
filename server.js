@@ -27,7 +27,7 @@ const allowedOrigins = [
   'https://waec-cbt-admin.vercel.app'
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
@@ -43,10 +43,10 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+};
 
-// Handle preflight requests
-app.options('*', cors());
+// Apply CORS middleware - this handles OPTIONS preflight automatically
+app.use(cors(corsOptions));
 
 app.get('/', (req, res) => {
   res.json({
