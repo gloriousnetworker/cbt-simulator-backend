@@ -56,24 +56,35 @@ class TokenService {
   }
 
   static setTokenCookies(res, tokens) {
+    // For production (Vercel domain)
     res.cookie('accessToken', tokens.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000
+      sameSite: 'lax', // Changed from 'strict' to 'lax'
+      maxAge: 15 * 60 * 1000,
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
     });
 
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      sameSite: 'lax', // Changed from 'strict' to 'lax'
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
     });
   }
 
   static clearTokenCookies(res) {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    res.clearCookie('accessToken', {
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+    });
+    res.clearCookie('refreshToken', {
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined
+    });
   }
 }
 
