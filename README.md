@@ -2,6 +2,168 @@
 
 A robust backend API for the Computer-Based Testing (CBT) Simulator application built with Node.js, Express, and Firebase. This API serves three interfaces: Super Admin Dashboard, School Admin Dashboard, and Student CBT App.
 
+🏗️ System Architecture Overview
+User Roles & Hierarchy
+
+    Super Admin (Top-level)
+
+        Manages schools, admins, and system-wide operations
+
+        Views all data across schools
+
+        Handles tickets, reports, and system stats
+
+        Manages subscriptions and revenue
+
+    School Admin (School-level)
+
+        Manages their specific school
+
+        Creates and manages students
+
+        Creates subjects and questions
+
+        Views school-specific stats and tickets
+
+    Student (End-user)
+
+        Takes exams
+
+        Views results and performance
+
+        Manages profile
+
+Core Domain Models
+
+    User: Authentication and authorization for admins/super-admins
+
+    Student: Student profiles with loginId, NIN, class, subjects
+
+    School: Tenant/school information
+
+    Subject: Subjects offered (with class, examType, duration)
+
+    Question: CBT questions with options, correct answers
+
+    Exam: Exam sessions with questions, answers, scores
+
+    Ticket: Support tickets between admins and super-admins
+
+Key Features Implemented
+For Super Admin
+
+    ✅ School management (CRUD, status toggle)
+
+    ✅ Admin management (create, update, delete, status)
+
+    ✅ System-wide stats dashboard
+
+    ✅ Ticket management across all schools
+
+    ✅ Report generation (school, admin, student, performance, revenue)
+
+    ✅ Subscription management
+
+For School Admin
+
+    ✅ Student management (CRUD with auto-generated credentials)
+
+    ✅ Subject management (CRUD)
+
+    ✅ Question bank (CRUD, bulk import)
+
+    ✅ School-specific dashboard stats
+
+    ✅ Ticket creation and reply
+
+    ✅ Student subject assignment
+
+For Students
+
+    ✅ Login via loginId/NIN + password
+
+    ✅ Profile management
+
+    ✅ Exam taking with anti-cheating (tab switch detection)
+
+    ✅ Auto-submission after 3 tab switches
+
+    ✅ Results and performance tracking
+
+    ✅ Subject list view
+
+Security Features
+
+    ✅ JWT-based authentication (access + refresh tokens)
+
+    ✅ Role-based authorization (super_admin, admin, student)
+
+    ✅ 2FA for admin users (super_admin and admin)
+
+    ✅ Subscription status checking for admins
+
+    ✅ Password hashing with bcrypt
+
+    ✅ Cookie-based token storage
+
+Technical Stack
+
+    Backend: Node.js + Express
+
+    Database: Firebase Firestore
+
+    Authentication: JWT with cookies
+
+    2FA: speakeasy + QRCode
+
+    Validation: express-validator
+
+Data Flow
+text
+
+Super Admin → Manages → Schools → Admins → Students → Exams
+                                          ↓
+                                    Subjects/Questions
+
+Key Business Logic
+
+    Student Creation: Auto-generates loginId, email, default password
+
+    Exam Taking: Random question selection, tab switch monitoring
+
+    Subscription: Expiry checking for admin access
+
+    Ticket System: Multi-level support (admin → super admin)
+
+    Reporting: Multiple report types with CSV export
+
+What You're Building
+
+A complete SaaS-based CBT platform where:
+
+    Super admin can onboard schools and manage the entire system
+
+    Schools can manage their students, subjects, and question banks
+
+    Students can take standardized tests with anti-cheating measures
+
+    All data is isolated per school (multi-tenant)
+
+    Subscription-based access control
+
+    Support ticket system for issue resolution
+
+API Structure
+text
+
+/api/auth/* - Authentication endpoints
+/api/super-admin/* - Super admin operations
+/api/admin/* - School admin operations
+/api/student/* - Student operations
+/api/exam/* - Exam-taking operations
+
+The system is well-architected with clear separation of concerns, proper middleware chains, and comprehensive error handling. All your endpoints are logically grouped by role and functionality, making it maintainable and scalable.
+
 ## 🚀 Features
 
 - **Authentication**: Cookie-based JWT authentication with refresh tokens
