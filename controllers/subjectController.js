@@ -21,13 +21,17 @@ const createSubject = async (req, res) => {
       });
     }
     
+    // Check if subject with same name exists for this school
     const existingSubjects = await Subject.findAll({ 
-      schoolId: req.user.schoolId,
-      name: name
+      schoolId: req.user.schoolId
     });
     
-    if (existingSubjects.length > 0) {
-      return res.status(400).json({ message: 'Subject already exists' });
+    const subjectExists = existingSubjects.some(subject => 
+      subject.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (subjectExists) {
+      return res.status(400).json({ message: 'Subject with this name already exists in your school' });
     }
     
     const subjectData = removeUndefined({
@@ -97,6 +101,21 @@ const updateSubject = async (req, res) => {
     
     if (!subject || subject.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    // If updating name, check if new name already exists
+    if (req.body.name && req.body.name.toLowerCase() !== subject.name.toLowerCase()) {
+      const existingSubjects = await Subject.findAll({ 
+        schoolId: req.user.schoolId
+      });
+      
+      const nameExists = existingSubjects.some(s => 
+        s.name.toLowerCase() === req.body.name.toLowerCase() && s.id !== subjectId
+      );
+      
+      if (nameExists) {
+        return res.status(400).json({ message: 'Subject with this name already exists' });
+      }
     }
     
     const updateData = removeUndefined(req.body);
