@@ -19,6 +19,8 @@ router.delete('/students/:studentId', adminController.deleteStudent);
 router.post('/students/:studentId/subjects', adminController.addStudentSubject);
 router.delete('/students/:studentId/subjects', adminController.removeStudentSubject);
 
+router.post('/change-password', adminController.changePassword);
+
 router.post('/subjects', subjectController.createSubject);
 router.get('/subjects', subjectController.getAllSubjects);
 router.get('/subjects/:subjectId', subjectController.getSubjectById);

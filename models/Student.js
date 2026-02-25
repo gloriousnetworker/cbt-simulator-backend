@@ -42,6 +42,10 @@ class Student {
       query = query.where('loginId', '==', filters.loginId);
     }
     
+    if (filters.status) {
+      query = query.where('status', '==', filters.status);
+    }
+    
     const snapshot = await query.get();
     return snapshot.docs.map(doc => ({
       id: doc.id,
@@ -90,6 +94,26 @@ class Student {
     
     await db.collection(this.collection).doc(id).delete();
     return { message: 'Student deleted successfully' };
+  }
+
+  static async toggleStatus(id, status) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await studentRef.update({
+      status: status,
+      updatedAt: timestamp
+    });
+    
+    const updated = await studentRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
   }
 
   static async getStudentCount(schoolId) {

@@ -1,3 +1,4 @@
+// controllers/adminController.js
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Student = require('../models/Student');
@@ -181,6 +182,29 @@ const deleteStudent = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const admin = await User.findById(req.user.id);
+    
+    const isValidPassword = await bcrypt.compare(currentPassword, admin.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await User.update(req.user.id, { password: hashedPassword });
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const createTicket = async (req, res) => {
   try {
     const { subject, category, priority, description } = req.body;
@@ -358,6 +382,7 @@ module.exports = {
   getStudentById,
   updateStudent,
   deleteStudent,
+  changePassword,
   createTicket,
   getTickets,
   replyToTicket,

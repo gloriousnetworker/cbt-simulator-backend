@@ -58,6 +58,32 @@ class User {
     };
   }
 
+  static async findAll(filters = {}) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    let query = db.collection(this.collection);
+    
+    if (filters.role) {
+      query = query.where('role', '==', filters.role);
+    }
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    }
+    
+    if (filters.status) {
+      query = query.where('status', '==', filters.status);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
   static async update(id, updateData) {
     if (!db) {
       throw new Error('Database not initialized');
@@ -132,6 +158,26 @@ class User {
       twoFactorEnabled: false,
       twoFactorSecret: null,
       twoFactorVerified: false,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async toggleStatus(id, status) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      status: status,
       updatedAt: timestamp
     });
     

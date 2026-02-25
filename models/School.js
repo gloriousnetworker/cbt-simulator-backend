@@ -20,8 +20,14 @@ class School {
     return school;
   }
 
-  static async findAll() {
-    const snapshot = await db.collection(this.collection).get();
+  static async findAll(filters = {}) {
+    let query = db.collection(this.collection);
+    
+    if (filters.status) {
+      query = query.where('status', '==', filters.status);
+    }
+    
+    const snapshot = await query.get();
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -44,6 +50,27 @@ class School {
     
     await schoolRef.update({
       ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await schoolRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'School deleted successfully' };
+  }
+
+  static async toggleStatus(id, status) {
+    const schoolRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await schoolRef.update({
+      status: status,
       updatedAt: timestamp
     });
     
