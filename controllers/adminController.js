@@ -5,6 +5,7 @@ const Student = require('../models/Student');
 const Exam = require('../models/Exam');
 const Ticket = require('../models/Ticket');
 const School = require('../models/School');
+const Subject = require('../models/Subject'); // 👈 THIS WAS MISSING
 
 const removeUndefined = (obj) => {
   return Object.entries(obj).reduce((acc, [key, value]) => {
