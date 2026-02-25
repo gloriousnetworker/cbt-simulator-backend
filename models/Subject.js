@@ -36,6 +36,14 @@ class Subject {
       query = query.where('examType', '==', filters.examType);
     }
     
+    if (filters.name) {
+      query = query.where('name', '==', filters.name);
+    }
+    
+    if (filters.id) {
+      query = query.where('id', '==', filters.id);
+    }
+    
     const snapshot = await query.get();
     return snapshot.docs.map(doc => ({
       id: doc.id,

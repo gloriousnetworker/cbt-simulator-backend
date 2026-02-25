@@ -321,25 +321,45 @@ const addStudentSubject = async (req, res) => {
     const { studentId } = req.params;
     const { subject } = req.body;
     
+    // First check if the subject exists in the school
+    const subjectExists = await Subject.findAll({ 
+      schoolId: req.user.schoolId,
+      name: subject
+    });
+    
+    if (subjectExists.length === 0) {
+      return res.status(404).json({ message: 'Subject not found in your school' });
+    }
+    
     const student = await Student.findById(studentId);
     
     if (!student || student.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Student not found' });
     }
     
-    const subjects = student.subjects || ['Mathematics', 'English'];
+    // Initialize subjects array if it doesn't exist
+    const subjects = student.subjects || [];
     
-    if (subjects.includes(subject)) {
-      return res.status(400).json({ message: 'Subject already assigned' });
+    // Check if subject already assigned (case insensitive)
+    const subjectExistsInStudent = subjects.some(s => 
+      s.toLowerCase() === subject.toLowerCase()
+    );
+    
+    if (subjectExistsInStudent) {
+      return res.status(400).json({ message: 'Subject already assigned to student' });
     }
     
     subjects.push(subject);
     
     const updatedStudent = await Student.update(studentId, { subjects });
     
+    // Get the full subject details to return
+    const subjectDetails = subjectExists[0];
+    
     res.json({
       message: 'Subject added successfully',
-      subjects: updatedStudent.subjects
+      subjects: updatedStudent.subjects,
+      subjectDetails: subjectDetails
     });
   } catch (error) {
     console.error('Add subject error:', error);
@@ -352,6 +372,7 @@ const removeStudentSubject = async (req, res) => {
     const { studentId } = req.params;
     const { subject } = req.body;
     
+    // Prevent removal of default subjects if needed
     if (subject === 'Mathematics' || subject === 'English') {
       return res.status(400).json({ message: 'Cannot remove required subjects' });
     }
@@ -362,7 +383,9 @@ const removeStudentSubject = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
     
-    const subjects = student.subjects.filter(s => s !== subject);
+    const subjects = student.subjects.filter(s => 
+      s.toLowerCase() !== subject.toLowerCase()
+    );
     
     const updatedStudent = await Student.update(studentId, { subjects });
     

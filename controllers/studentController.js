@@ -148,16 +148,27 @@ const getSubjects = async (req, res) => {
   try {
     const student = await Student.findById(req.student.id);
     
-    const subjectNames = student.subjects || [];
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
     
+    const subjectNames = student.subjects || [];
     const subjects = [];
+    const seenIds = new Set(); // Track unique subject IDs
+    
     for (const name of subjectNames) {
+      // Find subjects by exact name match and school
       const subjectList = await Subject.findAll({ 
         schoolId: student.schoolId,
-        name: name
+        name: name  // This now works because we added name filter
       });
-      if (subjectList.length > 0) {
-        subjects.push(subjectList[0]);
+      
+      // Add only unique subjects
+      for (const subject of subjectList) {
+        if (!seenIds.has(subject.id)) {
+          seenIds.add(subject.id);
+          subjects.push(subject);
+        }
       }
     }
     
