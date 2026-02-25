@@ -24,14 +24,20 @@ const startExam = async (req, res) => {
       return res.status(403).json({ message: 'You are not enrolled in this subject' });
     }
     
-    const questions = await Question.findAll({ 
+    let questions = await Question.findAll({ 
       subjectId: subjectId,
-      class: student.class,
       schoolId: student.schoolId
     });
     
     if (questions.length === 0) {
       return res.status(404).json({ message: 'No questions available for this subject' });
+    }
+    
+    if (questions[0].class !== undefined) {
+      const classQuestions = questions.filter(q => q.class === student.class);
+      if (classQuestions.length > 0) {
+        questions = classQuestions;
+      }
     }
     
     const shuffledQuestions = questions.sort(() => 0.5 - Math.random());
@@ -43,7 +49,8 @@ const startExam = async (req, res) => {
       options: q.options,
       marks: q.marks || 1,
       difficulty: q.difficulty,
-      topic: q.topic
+      topic: q.topic,
+      correctAnswer: q.correctAnswer
     }));
     
     const exam = await Exam.create({
@@ -63,6 +70,8 @@ const startExam = async (req, res) => {
       totalMarks: examQuestions.reduce((sum, q) => sum + (q.marks || 1), 0)
     });
     
+    const questionsForClient = examQuestions.map(({ correctAnswer, ...rest }) => rest);
+    
     res.status(201).json({
       message: 'Exam started',
       exam: {
@@ -72,7 +81,7 @@ const startExam = async (req, res) => {
         examType: exam.examType,
         duration: exam.duration,
         questionCount: exam.questionCount,
-        questions: exam.questions,
+        questions: questionsForClient,
         startTime: exam.startTime,
         status: exam.status
       }
