@@ -15,6 +15,8 @@ class User {
     const user = {
       id: userRef.id,
       ...userData,
+      emailVerified: false,
+      verificationToken: userData.verificationToken || null,
       twoFactorEnabled: false,
       twoFactorSecret: null,
       twoFactorVerified: false,
@@ -58,6 +60,24 @@ class User {
     };
   }
 
+  static async findByVerificationToken(token) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const snapshot = await db.collection(this.collection)
+      .where('verificationToken', '==', token)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) return null;
+    
+    return {
+      id: snapshot.docs[0].id,
+      ...snapshot.docs[0].data()
+    };
+  }
+
   static async findAll(filters = {}) {
     if (!db) {
       throw new Error('Database not initialized');
@@ -94,6 +114,28 @@ class User {
     
     await userRef.update({
       ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async verifyEmail(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      emailVerified: true,
+      verificationToken: null,
+      status: 'active',
       updatedAt: timestamp
     });
     

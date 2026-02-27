@@ -1,25 +1,94 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const User = require('../models/User');
+const School = require('../models/School');
 const TokenService = require('../services/tokenService');
 const TwoFactorService = require('../services/twoFactorService');
+const EmailService = require('../services/emailService');
+const Subject = require('../models/Subject');
+
+const registerAdmin = async (req, res) => {
+  try {
+    const { email, password, name, schoolName, schoolAddress, schoolPhone } = req.body;
+    
+    const existingUser = await User.findByEmail(email);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    const school = await School.create({
+      name: schoolName,
+      address: schoolAddress,
+      phone: schoolPhone,
+      email,
+      status: 'pending'
+    });
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      name,
+      role: 'admin',
+      schoolId: school.id,
+      status: 'pending',
+      verificationToken
+    });
+    
+    await EmailService.sendVerificationEmail(email, verificationToken, name);
+    
+    const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
+    
+    res.status(201).json({
+      message: 'Registration successful. Please check your email to verify your account.',
+      user: userWithoutPassword,
+      school
+    });
+  } catch (error) {
+    console.error('Register admin error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    const user = await User.findByVerificationToken(token);
+    
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+    
+    await User.verifyEmail(user.id);
+    
+    if (user.schoolId) {
+      await School.update(user.schoolId, { status: 'active' });
+      await EmailService.sendSchoolApprovalEmail(user.email, user.schoolId);
+    }
+    
+    res.json({ message: 'Email verified successfully. Your account is now active.' });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    const { db } = require('../config/firebase');
-    
-    if (!db) {
-      return res.status(500).json({ 
-        message: 'Database connection error',
-        error: 'Firebase not initialized'
-      });
-    }
-    
     const user = await User.findByEmail(email);
     
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    if (user.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active. Please verify your email.' });
     }
     
     const isValidPassword = await bcrypt.compare(password, user.password);
@@ -238,8 +307,11 @@ const createSuperAdmin = async (req, res) => {
       password: hashedPassword,
       name,
       role: 'super_admin',
-      status: 'active'
+      status: 'active',
+      emailVerified: true
     });
+    
+    await Subject.initializeDefaultSubjects();
     
     const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
     
@@ -253,6 +325,8 @@ const createSuperAdmin = async (req, res) => {
 };
 
 module.exports = {
+  registerAdmin,
+  verifyEmail,
   login,
   verify2FA,
   setup2FA,

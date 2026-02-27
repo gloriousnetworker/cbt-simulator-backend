@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
-const { validate, loginValidation } = require('../middleware/validationMiddleware');
+const { validate, loginValidation, registerAdminValidation } = require('../middleware/validationMiddleware');
 
+router.post('/register', validate(registerAdminValidation), authController.registerAdmin);
+router.post('/verify-email', authController.verifyEmail);
 router.post('/login', validate(loginValidation), authController.login);
 router.post('/verify-2fa', authController.verify2FA);
 router.post('/logout', authController.logout);

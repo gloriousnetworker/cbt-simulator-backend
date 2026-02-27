@@ -1,4 +1,3 @@
-// controllers/questionController.js
 const Question = require('../models/Question');
 const Subject = require('../models/Subject');
 
@@ -23,18 +22,25 @@ const createQuestion = async (req, res) => {
       difficulty, 
       topic,
       class: studentClass,
-      examType
+      examType,
+      mode
     } = req.body;
     
-    if (!subjectId || !question || !options || !options.length === 4 || correctAnswer === undefined) {
+    if (!subjectId || !question || !options || options.length !== 4 || correctAnswer === undefined) {
       return res.status(400).json({ 
         message: 'Missing required fields: subjectId, question, options (4), and correctAnswer are required' 
       });
     }
     
+    if (!mode || !['exam', 'practice'].includes(mode)) {
+      return res.status(400).json({ 
+        message: 'Mode is required and must be either "exam" or "practice"' 
+      });
+    }
+    
     const subject = await Subject.findById(subjectId);
     
-    if (!subject || subject.schoolId !== req.user.schoolId) {
+    if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
     
@@ -48,8 +54,9 @@ const createQuestion = async (req, res) => {
       explanation,
       difficulty: difficulty || 'medium',
       topic: topic || 'General',
-      class: studentClass || subject.class,
+      class: studentClass || 'General',
       examType: examType || subject.examType,
+      mode,
       schoolId: req.user.schoolId,
       createdBy: req.user.id
     });
@@ -71,7 +78,7 @@ const createQuestion = async (req, res) => {
 
 const getAllQuestions = async (req, res) => {
   try {
-    const { subjectId, class: studentClass, examType, difficulty } = req.query;
+    const { subjectId, class: studentClass, examType, difficulty, mode } = req.query;
     
     const filters = { schoolId: req.user.schoolId };
     
@@ -79,6 +86,7 @@ const getAllQuestions = async (req, res) => {
     if (studentClass) filters.class = studentClass;
     if (examType) filters.examType = examType;
     if (difficulty) filters.difficulty = difficulty;
+    if (mode) filters.mode = mode;
     
     const questions = await Question.findAll(filters);
     
@@ -163,14 +171,23 @@ const bulkImportQuestions = async (req, res) => {
     
     const subject = await Subject.findById(subjectId);
     
-    if (!subject || subject.schoolId !== req.user.schoolId) {
+    if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
     
     const createdQuestions = [];
+    const errors = [];
     
-    for (const q of questions) {
-      if (!q.question || !q.options || q.options.length !== 4 || q.correctAnswer === undefined) {
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      
+      if (!q.question || !q.options || q.options.length !== 4 || q.correctAnswer === undefined || !q.mode) {
+        errors.push({ index: i, message: 'Missing required fields' });
+        continue;
+      }
+      
+      if (!['exam', 'practice'].includes(q.mode)) {
+        errors.push({ index: i, message: 'Mode must be either "exam" or "practice"' });
         continue;
       }
       
@@ -184,8 +201,9 @@ const bulkImportQuestions = async (req, res) => {
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         topic: q.topic || 'General',
-        class: q.class || subject.class,
+        class: q.class || 'General',
         examType: q.examType || subject.examType,
+        mode: q.mode,
         schoolId: req.user.schoolId,
         createdBy: req.user.id
       };
@@ -200,6 +218,7 @@ const bulkImportQuestions = async (req, res) => {
     res.status(201).json({
       message: `Successfully imported ${createdQuestions.length} questions`,
       count: createdQuestions.length,
+      errors: errors.length > 0 ? errors : undefined,
       questions: createdQuestions
     });
   } catch (error) {

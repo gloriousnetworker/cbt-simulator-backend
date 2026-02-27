@@ -1,7 +1,5 @@
-// models/Exam.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
-const Question = require('./Question');
 
 class Exam {
   static collection = 'exams';
@@ -13,7 +11,10 @@ class Exam {
     const exam = {
       id: examRef.id,
       ...examData,
-      status: 'pending',
+      status: 'in_progress',
+      tabSwitches: 0,
+      answers: {},
+      lastSaved: new Date(),
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -22,11 +23,15 @@ class Exam {
     return exam;
   }
 
-  static async findByStudent(studentId) {
-    const snapshot = await db.collection(this.collection)
-      .where('studentId', '==', studentId)
-      .orderBy('createdAt', 'desc')
-      .get();
+  static async findByStudent(studentId, status = null) {
+    let query = db.collection(this.collection)
+      .where('studentId', '==', studentId);
+    
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    
+    const snapshot = await query.orderBy('createdAt', 'desc').get();
     
     return snapshot.docs.map(doc => ({
       id: doc.id,
@@ -72,32 +77,21 @@ class Exam {
     };
   }
 
-  static async getResults(studentId) {
-    const exams = await this.findByStudent(studentId);
+  static async saveAnswer(id, questionId, answer) {
+    const examRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
-    const results = {
-      totalExams: exams.length,
-      averageScore: 0,
-      subjects: {}
+    await examRef.update({
+      [`answers.${questionId}`]: answer,
+      lastSaved: new Date(),
+      updatedAt: timestamp
+    });
+    
+    const updated = await examRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
     };
-    
-    if (exams.length > 0) {
-      const totalScore = exams.reduce((sum, exam) => sum + (exam.score || 0), 0);
-      results.averageScore = totalScore / exams.length;
-      
-      exams.forEach(exam => {
-        if (!results.subjects[exam.subject]) {
-          results.subjects[exam.subject] = {
-            attempts: 0,
-            totalScore: 0
-          };
-        }
-        results.subjects[exam.subject].attempts++;
-        results.subjects[exam.subject].totalScore += exam.score || 0;
-      });
-    }
-    
-    return results;
   }
 
   static async calculateScore(answers, questions) {
@@ -113,6 +107,40 @@ class Exam {
     });
     
     return { totalScore, totalMarks };
+  }
+
+  static async getResults(studentId) {
+    const exams = await this.findByStudent(studentId, 'completed');
+    
+    const results = {
+      totalExams: exams.length,
+      averageScore: 0,
+      subjects: {}
+    };
+    
+    if (exams.length > 0) {
+      const totalScore = exams.reduce((sum, exam) => sum + (exam.score || 0), 0);
+      results.averageScore = totalScore / exams.length;
+      
+      exams.forEach(exam => {
+        if (!results.subjects[exam.subject]) {
+          results.subjects[exam.subject] = {
+            attempts: 0,
+            totalScore: 0,
+            averagePercentage: 0
+          };
+        }
+        results.subjects[exam.subject].attempts++;
+        results.subjects[exam.subject].totalScore += exam.score || 0;
+      });
+      
+      Object.keys(results.subjects).forEach(subject => {
+        const subj = results.subjects[subject];
+        subj.averagePercentage = (subj.totalScore / subj.attempts).toFixed(1);
+      });
+    }
+    
+    return results;
   }
 }
 

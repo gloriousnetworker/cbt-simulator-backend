@@ -1,4 +1,3 @@
-// controllers/studentController.js
 const bcrypt = require('bcryptjs');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
@@ -49,6 +48,10 @@ const studentLogin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
+    if (student.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active' });
+    }
+    
     const tokens = TokenService.generateTokens({
       id: student.id,
       email: student.email,
@@ -64,7 +67,9 @@ const studentLogin = async (req, res) => {
       user: {
         ...studentWithoutPassword,
         role: 'student'
-      }
+      },
+      examMode: student.examMode || false,
+      currentExam: student.currentExam || null
     });
   } catch (error) {
     console.error('Student login error:', error);
@@ -81,21 +86,23 @@ const getProfile = async (req, res) => {
     }
     
     const performance = await Exam.getResults(req.student.id);
+    const currentExam = student.currentExam ? await Exam.findById(student.currentExam) : null;
     
     const { password: pwd, ...studentWithoutPassword } = student;
     
     res.json({
       student: studentWithoutPassword,
-      performance
+      performance,
+      examMode: student.examMode,
+      currentExam: currentExam ? {
+        id: currentExam.id,
+        subject: currentExam.subject,
+        subjectId: currentExam.subjectId,
+        status: currentExam.status
+      } : null
     });
   } catch (error) {
     console.error('Get profile error:', error);
-    if (error.code === 'FAILED_PRECONDITION') {
-      return res.status(400).json({ 
-        message: 'Please create the required Firestore index first',
-        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
-      });
-    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -154,26 +161,21 @@ const getSubjects = async (req, res) => {
     
     const subjectNames = student.subjects || [];
     const subjects = [];
-    const seenIds = new Set(); // Track unique subject IDs
     
     for (const name of subjectNames) {
-      // Find subjects by exact name match and school
       const subjectList = await Subject.findAll({ 
-        schoolId: student.schoolId,
-        name: name  // This now works because we added name filter
+        name: name
       });
       
-      // Add only unique subjects
-      for (const subject of subjectList) {
-        if (!seenIds.has(subject.id)) {
-          seenIds.add(subject.id);
-          subjects.push(subject);
-        }
-      }
+      subjects.push(...subjectList);
     }
     
+    const uniqueSubjects = subjects.filter((subject, index, self) => 
+      index === self.findIndex(s => s.id === subject.id)
+    );
+    
     res.json({ 
-      subjects: subjects,
+      subjects: uniqueSubjects,
       subjectNames: subjectNames 
     });
   } catch (error) {
@@ -182,19 +184,48 @@ const getSubjects = async (req, res) => {
   }
 };
 
+const getPracticeQuestions = async (req, res) => {
+  try {
+    const { subjectId, count = 20 } = req.query;
+    
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const questions = await Question.getRandomQuestions(
+      subjectId, 
+      count, 
+      student.class,
+      'practice'
+    );
+    
+    const questionsForClient = questions.map(({ correctAnswer, ...rest }) => rest);
+    
+    res.json({ 
+      subject: subject.name,
+      questions: questionsForClient 
+    });
+  } catch (error) {
+    console.error('Get practice questions error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getExamHistory = async (req, res) => {
   try {
-    const exams = await Exam.findByStudent(req.student.id);
+    const exams = await Exam.findByStudent(req.student.id, 'completed');
     
     res.json({ exams });
   } catch (error) {
     console.error('Get exam history error:', error);
-    if (error.code === 'FAILED_PRECONDITION') {
-      return res.status(400).json({ 
-        message: 'Please create the required Firestore index first',
-        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
-      });
-    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -205,5 +236,6 @@ module.exports = {
   updateProfile,
   changePassword,
   getSubjects,
+  getPracticeQuestions,
   getExamHistory
 };

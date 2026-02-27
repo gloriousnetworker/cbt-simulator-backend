@@ -1,9 +1,8 @@
-// routes/superAdminRoutes.js
 const express = require('express');
 const router = express.Router();
 const superAdminController = require('../controllers/superAdminController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
-const { validate, createAdminValidation } = require('../middleware/validationMiddleware');
+const { validate, createAdminValidation, createSubjectValidation } = require('../middleware/validationMiddleware');
 
 router.use(authenticate);
 router.use(authorize('super_admin'));
@@ -21,6 +20,12 @@ router.get('/schools/:schoolId', superAdminController.getSchoolById);
 router.put('/schools/:schoolId', superAdminController.updateSchool);
 router.delete('/schools/:schoolId', superAdminController.deleteSchool);
 router.patch('/schools/:schoolId/status', superAdminController.toggleSchoolStatus);
+
+router.post('/subjects', validate(createSubjectValidation), superAdminController.createSubject);
+router.get('/subjects', superAdminController.getAllSubjects);
+router.get('/subjects/:subjectId', superAdminController.getSubjectById);
+router.put('/subjects/:subjectId', superAdminController.updateSubject);
+router.delete('/subjects/:subjectId', superAdminController.deleteSubject);
 
 router.get('/students', superAdminController.getAllStudents);
 

@@ -11,7 +11,7 @@ class School {
     const school = {
       id: schoolRef.id,
       ...schoolData,
-      status: 'active',
+      status: 'pending',
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -85,8 +85,9 @@ class School {
     const schools = await this.findAll();
     const totalSchools = schools.length;
     const activeSchools = schools.filter(s => s.status === 'active').length;
+    const pendingSchools = schools.filter(s => s.status === 'pending').length;
     
-    return { totalSchools, activeSchools };
+    return { totalSchools, activeSchools, pendingSchools };
   }
 }
 

@@ -21,6 +21,10 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
     
+    if (user.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active' });
+    }
+    
     req.user = user;
     next();
   } catch (error) {

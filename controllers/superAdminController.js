@@ -1,8 +1,8 @@
-// controllers/superAdminController.js
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const School = require('../models/School');
 const Student = require('../models/Student');
+const Subject = require('../models/Subject');
 const Ticket = require('../models/Ticket');
 const SubscriptionService = require('../services/subscriptionService');
 const { db } = require('../config/firebase');
@@ -24,7 +24,6 @@ const createAdmin = async (req, res) => {
     }
     
     const hashedPassword = await bcrypt.hash(password, 10);
-    
     const expiryDate = SubscriptionService.calculateExpiryDate(subscription.plan);
     
     const admin = await User.create({
@@ -34,6 +33,7 @@ const createAdmin = async (req, res) => {
       role: 'admin',
       schoolId,
       status: 'active',
+      emailVerified: true,
       subscription: {
         plan: subscription.plan,
         startDate: new Date(),
@@ -444,6 +444,115 @@ const updateTicketStatus = async (req, res) => {
   }
 };
 
+const createSubject = async (req, res) => {
+  try {
+    const { name, code, description, examType, duration, questionCount } = req.body;
+    
+    if (!name || !code) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: name and code are required' 
+      });
+    }
+    
+    const existingSubjects = await Subject.findAll({ name });
+    
+    if (existingSubjects.length > 0) {
+      return res.status(400).json({ message: 'Subject with this name already exists' });
+    }
+    
+    const subjectData = {
+      name,
+      code,
+      description: description || '',
+      examType: examType || 'WAEC',
+      duration: duration || 120,
+      questionCount: questionCount || 50,
+      isGlobal: true,
+      createdBy: req.user.id,
+      status: 'active'
+    };
+    
+    const subject = await Subject.create(subjectData);
+    
+    res.status(201).json({
+      message: 'Subject created successfully',
+      subject
+    });
+  } catch (error) {
+    console.error('Create subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllSubjects = async (req, res) => {
+  try {
+    const subjects = await Subject.findAll({});
+    res.json({ subjects });
+  } catch (error) {
+    console.error('Get all subjects error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubjectById = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    res.json({ subject });
+  } catch (error) {
+    console.error('Get subject by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const updateData = { ...req.body };
+    const updatedSubject = await Subject.update(subjectId, updateData);
+    
+    res.json({
+      message: 'Subject updated successfully',
+      subject: updatedSubject
+    });
+  } catch (error) {
+    console.error('Update subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    await Subject.delete(subjectId);
+    
+    res.json({ message: 'Subject deleted successfully' });
+  } catch (error) {
+    console.error('Delete subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getDashboardStats = async (req, res) => {
   try {
     const schools = await School.getStats();
@@ -465,21 +574,19 @@ const getDashboardStats = async (req, res) => {
       .get();
     const openTickets = ticketsSnapshot.size;
     
-    const totalRevenue = adminsSnapshot.docs.reduce((sum, doc) => {
-      const admin = doc.data();
-      return sum + (admin.subscription?.amount || 0);
-    }, 0);
+    const subscriptionStats = await SubscriptionService.getSubscriptionStats();
     
     res.json({
       stats: {
         totalSchools: schools.totalSchools,
         activeSchools: schools.activeSchools,
+        pendingSchools: schools.pendingSchools,
         totalAdmins,
         activeAdmins,
         totalStudents,
         totalExams,
         openTickets,
-        totalRevenue
+        ...subscriptionStats
       }
     });
   } catch (error) {
@@ -625,6 +732,11 @@ module.exports = {
   getTicketById,
   respondToTicket,
   updateTicketStatus,
+  createSubject,
+  getAllSubjects,
+  getSubjectById,
+  updateSubject,
+  deleteSubject,
   getDashboardStats,
   generateReport
 };

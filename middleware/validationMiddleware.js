@@ -18,6 +18,15 @@ const loginValidation = [
   body('password').notEmpty()
 ];
 
+const registerAdminValidation = [
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 6 }),
+  body('name').notEmpty(),
+  body('schoolName').notEmpty(),
+  body('schoolAddress').notEmpty(),
+  body('schoolPhone').notEmpty()
+];
+
 const createAdminValidation = [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
@@ -29,14 +38,28 @@ const createAdminValidation = [
 const createStudentValidation = [
   body('firstName').notEmpty(),
   body('lastName').notEmpty(),
-  body('class').notEmpty(),
-  body('nin').optional(),
-  body('phone').optional()
+  body('class').notEmpty()
+];
+
+const createSubjectValidation = [
+  body('name').notEmpty(),
+  body('code').notEmpty()
+];
+
+const createQuestionValidation = [
+  body('subjectId').notEmpty(),
+  body('question').notEmpty(),
+  body('options').isArray({ min: 4, max: 4 }),
+  body('correctAnswer').notEmpty(),
+  body('mode').isIn(['exam', 'practice'])
 ];
 
 module.exports = {
   validate,
   loginValidation,
+  registerAdminValidation,
   createAdminValidation,
-  createStudentValidation
+  createStudentValidation,
+  createSubjectValidation,
+  createQuestionValidation
 };

@@ -25,6 +25,10 @@ const authenticateStudent = async (req, res, next) => {
       return res.status(401).json({ message: 'Student not found' });
     }
     
+    if (student.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active' });
+    }
+    
     req.student = student;
     req.user = student;
     next();

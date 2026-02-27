@@ -15,6 +15,8 @@ class Student {
     const student = {
       id: studentRef.id,
       ...studentData,
+      examMode: false,
+      currentExam: null,
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -44,6 +46,10 @@ class Student {
     
     if (filters.status) {
       query = query.where('status', '==', filters.status);
+    }
+    
+    if (filters.examMode !== undefined) {
+      query = query.where('examMode', '==', filters.examMode);
     }
     
     const snapshot = await query.get();
@@ -96,7 +102,7 @@ class Student {
     return { message: 'Student deleted successfully' };
   }
 
-  static async toggleStatus(id, status) {
+  static async toggleExamMode(id, examMode) {
     if (!db) {
       throw new Error('Database not initialized');
     }
@@ -105,7 +111,27 @@ class Student {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     
     await studentRef.update({
-      status: status,
+      examMode: examMode,
+      updatedAt: timestamp
+    });
+    
+    const updated = await studentRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async setCurrentExam(id, examId) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await studentRef.update({
+      currentExam: examId,
       updatedAt: timestamp
     });
     

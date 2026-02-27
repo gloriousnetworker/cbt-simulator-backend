@@ -1,4 +1,3 @@
-// controllers/examController.js
 const Exam = require('../models/Exam');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
@@ -6,7 +5,7 @@ const Question = require('../models/Question');
 
 const startExam = async (req, res) => {
   try {
-    const { subjectId, examType, duration, questionCount = 50 } = req.body;
+    const { subjectId } = req.body;
     
     const student = await Student.findById(req.student.id);
     
@@ -14,9 +13,13 @@ const startExam = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
     
+    if (!student.examMode) {
+      return res.status(403).json({ message: 'Exam mode is not enabled for this student' });
+    }
+    
     const subject = await Subject.findById(subjectId);
     
-    if (!subject || subject.schoolId !== student.schoolId) {
+    if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
     
@@ -24,33 +27,47 @@ const startExam = async (req, res) => {
       return res.status(403).json({ message: 'You are not enrolled in this subject' });
     }
     
-    let questions = await Question.findAll({ 
-      subjectId: subjectId,
-      schoolId: student.schoolId
-    });
+    const existingExam = await Exam.findByStudent(req.student.id, 'in_progress');
+    const inProgressExam = existingExam.find(e => e.subjectId === subjectId);
+    
+    if (inProgressExam) {
+      const examQuestions = inProgressExam.questions.map(({ correctAnswer, ...rest }) => rest);
+      
+      return res.json({
+        message: 'Resuming existing exam',
+        exam: {
+          id: inProgressExam.id,
+          subject: inProgressExam.subject,
+          subjectId: inProgressExam.subjectId,
+          duration: inProgressExam.duration,
+          questionCount: inProgressExam.questionCount,
+          questions: examQuestions,
+          answers: inProgressExam.answers || {},
+          startTime: inProgressExam.startTime,
+          status: inProgressExam.status,
+          timeSpent: inProgressExam.timeSpent || 0
+        }
+      });
+    }
+    
+    const questions = await Question.getRandomQuestions(
+      subjectId, 
+      subject.questionCount, 
+      student.class,
+      'exam'
+    );
     
     if (questions.length === 0) {
-      return res.status(404).json({ message: 'No questions available for this subject' });
+      return res.status(404).json({ message: 'No exam questions available for this subject' });
     }
     
-    if (questions[0].class !== undefined) {
-      const classQuestions = questions.filter(q => q.class === student.class);
-      if (classQuestions.length > 0) {
-        questions = classQuestions;
-      }
-    }
-    
-    const shuffledQuestions = questions.sort(() => 0.5 - Math.random());
-    const selectedQuestions = shuffledQuestions.slice(0, Math.min(questionCount, shuffledQuestions.length));
-    
-    const examQuestions = selectedQuestions.map(q => ({
+    const examQuestions = questions.map(q => ({
       id: q.id,
       question: q.question,
       options: q.options,
       marks: q.marks || 1,
       difficulty: q.difficulty,
-      topic: q.topic,
-      correctAnswer: q.correctAnswer
+      topic: q.topic
     }));
     
     const exam = await Exam.create({
@@ -58,19 +75,20 @@ const startExam = async (req, res) => {
       schoolId: student.schoolId,
       subjectId: subjectId,
       subject: subject.name,
-      examType,
-      duration,
+      duration: subject.duration,
       questionCount: examQuestions.length,
-      questions: examQuestions,
+      questions: questions,
       startTime: new Date(),
-      status: 'pending',
+      status: 'in_progress',
       answers: {},
       tabSwitches: 0,
       score: 0,
       totalMarks: examQuestions.reduce((sum, q) => sum + (q.marks || 1), 0)
     });
     
-    const questionsForClient = examQuestions.map(({ correctAnswer, ...rest }) => rest);
+    await Student.setCurrentExam(req.student.id, exam.id);
+    
+    const questionsForClient = examQuestions.map(q => q);
     
     res.status(201).json({
       message: 'Exam started',
@@ -78,7 +96,6 @@ const startExam = async (req, res) => {
         id: exam.id,
         subject: exam.subject,
         subjectId: exam.subjectId,
-        examType: exam.examType,
         duration: exam.duration,
         questionCount: exam.questionCount,
         questions: questionsForClient,
@@ -95,7 +112,6 @@ const startExam = async (req, res) => {
 const submitExam = async (req, res) => {
   try {
     const { examId } = req.params;
-    const { answers } = req.body;
     
     const exam = await Exam.findById(examId);
     
@@ -111,7 +127,7 @@ const submitExam = async (req, res) => {
     let totalScore = 0;
     
     questions.forEach(question => {
-      const userAnswer = answers[question.id];
+      const userAnswer = exam.answers[question.id];
       if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
         totalScore += question.marks || 1;
       }
@@ -120,19 +136,20 @@ const submitExam = async (req, res) => {
     const percentage = ((totalScore / exam.totalMarks) * 100).toFixed(1);
     
     const updatedExam = await Exam.update(examId, {
-      answers,
       score: totalScore,
       percentage: parseFloat(percentage),
       status: 'completed',
       endTime: new Date()
     });
     
+    await Student.setCurrentExam(req.student.id, null);
+    
     res.json({
       message: 'Exam submitted successfully',
       exam: {
         id: updatedExam.id,
         subject: updatedExam.subject,
-        examType: updatedExam.examType,
+        subjectId: updatedExam.subjectId,
         score: updatedExam.score,
         totalMarks: updatedExam.totalMarks,
         percentage: updatedExam.percentage,
@@ -155,7 +172,12 @@ const getExamById = async (req, res) => {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
-    res.json({ exam });
+    const examForClient = {
+      ...exam,
+      questions: exam.questions.map(({ correctAnswer, ...rest }) => rest)
+    };
+    
+    res.json({ exam: examForClient });
   } catch (error) {
     console.error('Get exam by ID error:', error);
     res.status(500).json({ message: error.message });
@@ -176,16 +198,28 @@ const recordTabSwitch = async (req, res) => {
     let autoSubmitted = false;
     
     if (tabSwitches >= 3) {
-      const score = exam.score || 0;
-      const percentage = exam.totalMarks ? ((score / exam.totalMarks) * 100).toFixed(1) : 0;
+      const questions = exam.questions || [];
+      let totalScore = 0;
+      
+      questions.forEach(question => {
+        const userAnswer = exam.answers[question.id];
+        if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+          totalScore += question.marks || 1;
+        }
+      });
+      
+      const percentage = exam.totalMarks ? ((totalScore / exam.totalMarks) * 100).toFixed(1) : 0;
       
       await Exam.update(examId, {
         tabSwitches,
+        score: totalScore,
+        percentage: parseFloat(percentage),
         status: 'completed',
         endTime: new Date(),
-        autoSubmitted: true,
-        percentage: parseFloat(percentage)
+        autoSubmitted: true
       });
+      
+      await Student.setCurrentExam(req.student.id, null);
       autoSubmitted = true;
     } else {
       await Exam.update(examId, { tabSwitches });
@@ -213,9 +247,11 @@ const saveAnswer = async (req, res) => {
       return res.status(404).json({ message: 'Exam not found' });
     }
     
-    const answers = { ...exam.answers, [questionId]: answer };
+    if (exam.status === 'completed') {
+      return res.status(400).json({ message: 'Exam already submitted' });
+    }
     
-    await Exam.update(examId, { answers });
+    await Exam.saveAnswer(examId, questionId, answer);
     
     res.json({ message: 'Answer saved' });
   } catch (error) {
@@ -226,20 +262,18 @@ const saveAnswer = async (req, res) => {
 
 const getResults = async (req, res) => {
   try {
-    const exams = await Exam.findByStudent(req.student.id);
+    const exams = await Exam.findByStudent(req.student.id, 'completed');
     
-    const results = exams
-      .filter(exam => exam.status === 'completed')
-      .map(exam => ({
-        id: exam.id,
-        subject: exam.subject,
-        subjectId: exam.subjectId,
-        score: exam.score || 0,
-        totalMarks: exam.totalMarks || 0,
-        percentage: exam.percentage || 0,
-        date: exam.endTime || exam.createdAt,
-        examType: exam.examType
-      }));
+    const results = exams.map(exam => ({
+      id: exam.id,
+      subject: exam.subject,
+      subjectId: exam.subjectId,
+      score: exam.score || 0,
+      totalMarks: exam.totalMarks || 0,
+      percentage: exam.percentage || 0,
+      date: exam.endTime || exam.createdAt,
+      duration: exam.duration
+    }));
     
     res.json({ results });
   } catch (error) {
@@ -250,38 +284,7 @@ const getResults = async (req, res) => {
 
 const getPerformance = async (req, res) => {
   try {
-    const exams = await Exam.findByStudent(req.student.id);
-    
-    const completedExams = exams.filter(exam => exam.status === 'completed');
-    
-    const performance = {
-      totalExams: completedExams.length,
-      averageScore: 0,
-      averagePercentage: 0,
-      subjects: {}
-    };
-    
-    if (completedExams.length > 0) {
-      const totalScore = completedExams.reduce((sum, exam) => sum + (exam.score || 0), 0);
-      const totalPercentage = completedExams.reduce((sum, exam) => sum + (exam.percentage || 0), 0);
-      
-      performance.averageScore = Math.round(totalScore / completedExams.length);
-      performance.averagePercentage = Math.round(totalPercentage / completedExams.length);
-      
-      completedExams.forEach(exam => {
-        if (!performance.subjects[exam.subject]) {
-          performance.subjects[exam.subject] = {
-            attempts: 0,
-            totalScore: 0,
-            totalPercentage: 0
-          };
-        }
-        performance.subjects[exam.subject].attempts++;
-        performance.subjects[exam.subject].totalScore += exam.score || 0;
-        performance.subjects[exam.subject].totalPercentage += exam.percentage || 0;
-      });
-    }
-    
+    const performance = await Exam.getResults(req.student.id);
     res.json({ performance });
   } catch (error) {
     console.error('Get performance error:', error);

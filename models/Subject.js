@@ -1,4 +1,3 @@
-// models/Subject.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -26,6 +25,8 @@ class Subject {
     
     if (filters.schoolId) {
       query = query.where('schoolId', '==', filters.schoolId);
+    } else {
+      query = query.where('isGlobal', '==', true);
     }
     
     if (filters.class) {
@@ -38,10 +39,6 @@ class Subject {
     
     if (filters.name) {
       query = query.where('name', '==', filters.name);
-    }
-    
-    if (filters.id) {
-      query = query.where('id', '==', filters.id);
     }
     
     const snapshot = await query.get();
@@ -80,6 +77,20 @@ class Subject {
   static async delete(id) {
     await db.collection(this.collection).doc(id).delete();
     return { message: 'Subject deleted successfully' };
+  }
+
+  static async initializeDefaultSubjects() {
+    const defaultSubjects = [
+      { name: 'Mathematics', code: 'MATH', description: 'Mathematics', isGlobal: true, examType: 'WAEC', duration: 120, questionCount: 50 },
+      { name: 'English Language', code: 'ENG', description: 'English Language', isGlobal: true, examType: 'WAEC', duration: 120, questionCount: 50 }
+    ];
+    
+    for (const subject of defaultSubjects) {
+      const existing = await this.findAll({ name: subject.name });
+      if (existing.length === 0) {
+        await this.create(subject);
+      }
+    }
   }
 }
 

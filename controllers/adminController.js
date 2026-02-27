@@ -1,11 +1,11 @@
-// controllers/adminController.js
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Student = require('../models/Student');
 const Exam = require('../models/Exam');
 const Ticket = require('../models/Ticket');
 const School = require('../models/School');
-const Subject = require('../models/Subject'); // 👈 THIS WAS MISSING
+const Subject = require('../models/Subject');
+const Question = require('../models/Question');
 
 const removeUndefined = (obj) => {
   return Object.entries(obj).reduce((acc, [key, value]) => {
@@ -14,6 +14,88 @@ const removeUndefined = (obj) => {
     }
     return acc;
   }, {});
+};
+
+const getProfile = async (req, res) => {
+  try {
+    const { password, ...admin } = req.user;
+    res.json({ admin });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    
+    const updatedAdmin = await User.update(req.user.id, updateData);
+    
+    const { password, ...adminWithoutPassword } = updatedAdmin;
+    
+    res.json({
+      message: 'Profile updated successfully',
+      admin: adminWithoutPassword
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const admin = await User.findById(req.user.id);
+    
+    const isValidPassword = await bcrypt.compare(currentPassword, admin.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await User.update(req.user.id, { password: hashedPassword });
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllSubjects = async (req, res) => {
+  try {
+    const subjects = await Subject.findAll({ schoolId: req.user.schoolId });
+    res.json({ subjects });
+  } catch (error) {
+    console.error('Get all subjects error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubjectById = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    res.json({ subject });
+  } catch (error) {
+    console.error('Get subject by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
 };
 
 const createStudent = async (req, res) => {
@@ -57,6 +139,8 @@ const createStudent = async (req, res) => {
     const email = `${finalLoginId}@${schoolDomain}`;
     const hashedPassword = await bcrypt.hash('123456', 10);
     
+    const subjects = ['Mathematics', 'English'];
+    
     const studentData = removeUndefined({
       firstName,
       lastName,
@@ -71,7 +155,9 @@ const createStudent = async (req, res) => {
       email,
       password: hashedPassword,
       status: 'active',
-      subjects: ['Mathematics', 'English']
+      subjects,
+      examMode: false,
+      currentExam: null
     });
     
     const student = await Student.create(studentData);
@@ -84,7 +170,6 @@ const createStudent = async (req, res) => {
       credentials: {
         loginId: finalLoginId,
         email,
-        nin: nin || 'Not provided',
         password: '123456'
       }
     });
@@ -129,12 +214,6 @@ const getStudentById = async (req, res) => {
     });
   } catch (error) {
     console.error('Get student by ID error:', error);
-    if (error.code === 'FAILED_PRECONDITION') {
-      return res.status(400).json({ 
-        message: 'Please create the required Firestore index first',
-        link: 'https://console.firebase.google.com/v1/r/project/cbt-simulator/firestore/indexes'
-      });
-    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -183,25 +262,93 @@ const deleteStudent = async (req, res) => {
   }
 };
 
-const changePassword = async (req, res) => {
+const toggleExamMode = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { studentId } = req.params;
+    const { examMode } = req.body;
     
-    const admin = await User.findById(req.user.id);
+    const student = await Student.findById(studentId);
     
-    const isValidPassword = await bcrypt.compare(currentPassword, admin.password);
-    
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
     }
     
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const updatedStudent = await Student.toggleExamMode(studentId, examMode);
     
-    await User.update(req.user.id, { password: hashedPassword });
+    const { password, ...studentWithoutPassword } = updatedStudent;
     
-    res.json({ message: 'Password changed successfully' });
+    res.json({
+      message: `Exam mode ${examMode ? 'enabled' : 'disabled'} successfully`,
+      student: studentWithoutPassword
+    });
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('Toggle exam mode error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const addStudentSubject = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { subjectId } = req.body;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subjects = student.subjects || [];
+    
+    if (subjects.includes(subject.name)) {
+      return res.status(400).json({ message: 'Subject already assigned to student' });
+    }
+    
+    subjects.push(subject.name);
+    
+    const updatedStudent = await Student.update(studentId, { subjects });
+    
+    res.json({
+      message: 'Subject added successfully',
+      subjects: updatedStudent.subjects
+    });
+  } catch (error) {
+    console.error('Add subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const removeStudentSubject = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { subject } = req.body;
+    
+    if (subject === 'Mathematics' || subject === 'English') {
+      return res.status(400).json({ message: 'Cannot remove required subjects' });
+    }
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subjects = student.subjects.filter(s => s !== subject);
+    
+    const updatedStudent = await Student.update(studentId, { subjects });
+    
+    res.json({
+      message: 'Subject removed successfully',
+      subjects: updatedStudent.subjects
+    });
+  } catch (error) {
+    console.error('Remove subject error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -281,6 +428,8 @@ const getDashboardStats = async (req, res) => {
     
     const recentExams = exams.slice(0, 10);
     
+    const studentsInExamMode = students.filter(s => s.examMode).length;
+    
     const subjectPerformance = {};
     exams.forEach(exam => {
       if (!subjectPerformance[exam.subject]) {
@@ -304,6 +453,7 @@ const getDashboardStats = async (req, res) => {
     res.json({
       stats: {
         totalStudents,
+        studentsInExamMode,
         totalExams,
         averageScore,
         openTickets
@@ -317,100 +467,22 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-const addStudentSubject = async (req, res) => {
-  try {
-    const { studentId } = req.params;
-    const { subject } = req.body;
-    
-    // First check if the subject exists in the school
-    const subjectExists = await Subject.findAll({ 
-      schoolId: req.user.schoolId,
-      name: subject
-    });
-    
-    if (subjectExists.length === 0) {
-      return res.status(404).json({ message: 'Subject not found in your school' });
-    }
-    
-    const student = await Student.findById(studentId);
-    
-    if (!student || student.schoolId !== req.user.schoolId) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-    
-    // Initialize subjects array if it doesn't exist
-    const subjects = student.subjects || [];
-    
-    // Check if subject already assigned (case insensitive)
-    const subjectExistsInStudent = subjects.some(s => 
-      s.toLowerCase() === subject.toLowerCase()
-    );
-    
-    if (subjectExistsInStudent) {
-      return res.status(400).json({ message: 'Subject already assigned to student' });
-    }
-    
-    subjects.push(subject);
-    
-    const updatedStudent = await Student.update(studentId, { subjects });
-    
-    // Get the full subject details to return
-    const subjectDetails = subjectExists[0];
-    
-    res.json({
-      message: 'Subject added successfully',
-      subjects: updatedStudent.subjects,
-      subjectDetails: subjectDetails
-    });
-  } catch (error) {
-    console.error('Add subject error:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const removeStudentSubject = async (req, res) => {
-  try {
-    const { studentId } = req.params;
-    const { subject } = req.body;
-    
-    // Prevent removal of default subjects if needed
-    if (subject === 'Mathematics' || subject === 'English') {
-      return res.status(400).json({ message: 'Cannot remove required subjects' });
-    }
-    
-    const student = await Student.findById(studentId);
-    
-    if (!student || student.schoolId !== req.user.schoolId) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-    
-    const subjects = student.subjects.filter(s => 
-      s.toLowerCase() !== subject.toLowerCase()
-    );
-    
-    const updatedStudent = await Student.update(studentId, { subjects });
-    
-    res.json({
-      message: 'Subject removed successfully',
-      subjects: updatedStudent.subjects
-    });
-  } catch (error) {
-    console.error('Remove subject error:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
 module.exports = {
+  getProfile,
+  updateProfile,
+  changePassword,
+  getAllSubjects,
+  getSubjectById,
   createStudent,
   getAllStudents,
   getStudentById,
   updateStudent,
   deleteStudent,
-  changePassword,
+  toggleExamMode,
+  addStudentSubject,
+  removeStudentSubject,
   createTicket,
   getTickets,
   replyToTicket,
-  getDashboardStats,
-  addStudentSubject,
-  removeStudentSubject
+  getDashboardStats
 };

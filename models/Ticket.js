@@ -1,4 +1,3 @@
-// models/Ticket.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -13,7 +12,7 @@ class Ticket {
       id: ticketRef.id,
       ...ticketData,
       status: 'open',
-      messages: [], // Initialize empty messages array
+      messages: [],
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -61,7 +60,7 @@ class Ticket {
     
     const message = {
       ...messageData,
-      timestamp: new Date().toISOString() // Use ISO string instead of serverTimestamp
+      timestamp: new Date().toISOString()
     };
     
     await ticketRef.update({

@@ -1,4 +1,3 @@
-// models/Question.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -32,7 +31,11 @@ class Question {
     }
     
     if (filters.class) {
-      query = query.where('class', '==', filters.class);
+      if (filters.class === 'General') {
+        query = query.where('class', '==', 'General');
+      } else {
+        query = query.where('class', '==', filters.class);
+      }
     }
     
     if (filters.examType) {
@@ -41,6 +44,10 @@ class Question {
     
     if (filters.difficulty) {
       query = query.where('difficulty', '==', filters.difficulty);
+    }
+    
+    if (filters.mode) {
+      query = query.where('mode', '==', filters.mode);
     }
     
     const snapshot = await query.get();
@@ -99,6 +106,39 @@ class Question {
       .get();
     
     return snapshot.size;
+  }
+
+  static async getRandomQuestions(subjectId, count, studentClass, mode) {
+    let query = db.collection(this.collection)
+      .where('subjectId', '==', subjectId);
+    
+    const filters = [];
+    if (mode) {
+      filters.push({ field: 'mode', operator: '==', value: mode });
+    }
+    
+    const classFilter = [];
+    classFilter.push({ field: 'class', operator: '==', value: 'General' });
+    if (studentClass) {
+      classFilter.push({ field: 'class', operator: '==', value: studentClass });
+    }
+    
+    const snapshot = await query.get();
+    let questions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    questions = questions.filter(q => 
+      q.class === 'General' || q.class === studentClass
+    );
+    
+    if (mode) {
+      questions = questions.filter(q => q.mode === mode);
+    }
+    
+    const shuffled = questions.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, Math.min(count, shuffled.length));
   }
 }
 
