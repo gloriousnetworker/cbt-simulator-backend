@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   static transporter = null;
-  static baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  static baseUrl = process.env.FRONTEND_URL || 'http://https://waec-cbt-admin.vercel.app';
   static appName = 'Einstein CBT Platform';
   static supportEmail = 'support@einsteincbt.com';
 
