@@ -35,18 +35,27 @@ const registerAdmin = async (req, res) => {
       role: 'admin',
       schoolId: school.id,
       status: 'pending',
-      verificationToken
+      verificationToken,
+      subscription: null
     });
     
     await EmailService.sendVerificationEmail(email, verificationToken, name);
     
     const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
     
-    res.status(201).json({
+    const response = {
       message: 'Registration successful. Please check your email to verify your account.',
       user: userWithoutPassword,
-      school
-    });
+      school,
+      subscription: null
+    };
+    
+    if (process.env.NODE_ENV !== 'production') {
+      response.verificationToken = verificationToken;
+      response.devNote = 'In development mode, use this token to verify email';
+    }
+    
+    res.status(201).json(response);
   } catch (error) {
     console.error('Register admin error:', error);
     res.status(500).json({ message: error.message });
@@ -70,7 +79,10 @@ const verifyEmail = async (req, res) => {
       await EmailService.sendSchoolApprovalEmail(user.email, user.schoolId);
     }
     
-    res.json({ message: 'Email verified successfully. Your account is now active.' });
+    res.json({ 
+      message: 'Email verified successfully. Your account is now active. You can now set up your subscription from the dashboard.',
+      subscriptionRequired: false
+    });
   } catch (error) {
     console.error('Email verification error:', error);
     res.status(500).json({ message: error.message });
@@ -113,10 +125,14 @@ const login = async (req, res) => {
     
     const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
     
+    const hasSubscription = user.subscription && user.subscription.active;
+    
     res.json({
       message: 'Login successful',
       user: userWithoutPassword,
-      tokens
+      tokens,
+      hasSubscription,
+      subscription: user.subscription || null
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -186,7 +202,6 @@ const setup2FA = async (req, res) => {
     
     await User.enable2FA(user.id, secret);
     
-    // Send 2FA setup email
     try {
       await EmailService.send2FASetupEmail(user.email, user.name, qrCode, secret);
     } catch (emailError) {

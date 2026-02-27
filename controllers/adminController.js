@@ -6,6 +6,8 @@ const Ticket = require('../models/Ticket');
 const School = require('../models/School');
 const Subject = require('../models/Subject');
 const Question = require('../models/Question');
+const SubscriptionService = require('../services/subscriptionService');
+const EmailService = require('../services/emailService');
 
 const removeUndefined = (obj) => {
   return Object.entries(obj).reduce((acc, [key, value]) => {
@@ -19,7 +21,12 @@ const removeUndefined = (obj) => {
 const getProfile = async (req, res) => {
   try {
     const { password, ...admin } = req.user;
-    res.json({ admin });
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    res.json({ 
+      admin,
+      subscription: req.user.subscription || null,
+      subscriptionStatus
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ message: error.message });
@@ -73,7 +80,7 @@ const changePassword = async (req, res) => {
 
 const getAllSubjects = async (req, res) => {
   try {
-    const subjects = await Subject.findAll({ schoolId: req.user.schoolId });
+    const subjects = await Subject.findAll({ isGlobal: true });
     res.json({ subjects });
   } catch (error) {
     console.error('Get all subjects error:', error);
@@ -98,8 +105,75 @@ const getSubjectById = async (req, res) => {
   }
 };
 
+const getSubscriptionPlans = async (req, res) => {
+  try {
+    res.json({
+      plans: SubscriptionService.subscriptionPlans,
+      currentSubscription: req.user.subscription || null
+    });
+  } catch (error) {
+    console.error('Get subscription plans error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const activateSubscription = async (req, res) => {
+  try {
+    const { plan } = req.body;
+    
+    if (!SubscriptionService.subscriptionPlans[plan]) {
+      return res.status(400).json({ message: 'Invalid plan' });
+    }
+    
+    const subscriptionData = await SubscriptionService.activateSubscription(
+      req.user.id, 
+      plan, 
+      'self'
+    );
+    
+    try {
+      await EmailService.sendSubscriptionActivationEmail(
+        req.user.email,
+        req.user.name,
+        subscriptionData
+      );
+    } catch (emailError) {
+      console.error('Subscription activation email failed:', emailError);
+    }
+    
+    res.json({
+      message: 'Subscription activated successfully',
+      subscription: subscriptionData
+    });
+  } catch (error) {
+    console.error('Activate subscription error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubscriptionStatus = async (req, res) => {
+  try {
+    const status = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    res.json({
+      status,
+      subscription: req.user.subscription || null
+    });
+  } catch (error) {
+    console.error('Get subscription status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const createStudent = async (req, res) => {
   try {
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    if (!subscriptionStatus.active) {
+      return res.status(403).json({ 
+        message: 'Active subscription required to create students',
+        subscription: subscriptionStatus
+      });
+    }
+    
     const { firstName, lastName, middleName, nin, phone, dateOfBirth, class: studentClass } = req.body;
     
     if (!firstName || !lastName || !studentClass) {
@@ -418,6 +492,8 @@ const replyToTicket = async (req, res) => {
 
 const getDashboardStats = async (req, res) => {
   try {
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    
     const students = await Student.findAll({ schoolId: req.user.schoolId });
     const totalStudents = students.length;
     
@@ -451,6 +527,7 @@ const getDashboardStats = async (req, res) => {
     const openTickets = tickets.filter(t => t.status === 'open').length;
     
     res.json({
+      subscription: subscriptionStatus,
       stats: {
         totalStudents,
         studentsInExamMode,
@@ -473,6 +550,9 @@ module.exports = {
   changePassword,
   getAllSubjects,
   getSubjectById,
+  getSubscriptionPlans,
+  activateSubscription,
+  getSubscriptionStatus,
   createStudent,
   getAllStudents,
   getStudentById,

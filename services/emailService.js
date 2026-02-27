@@ -611,6 +611,77 @@ class EmailService {
       throw error;
     }
   }
+
+  static async sendSubscriptionActivationEmail(email, name, subscription) {
+  try {
+    const dashboardLink = `${this.baseUrl}/admin/dashboard`;
+    
+    const expiryText = subscription.expiryDate 
+      ? new Date(subscription.expiryDate).toLocaleDateString() 
+      : 'Never (Unlimited)';
+    
+    const content = `
+      <h1 style="color: #2c3e50; margin-bottom: 20px;">Subscription Activated Successfully! 🎉</h1>
+      
+      <p style="font-size: 16px; color: #34495e;">Congratulations ${name}, your subscription is now active!</p>
+      
+      <div class="info-box" style="background: #e8f5e9; border-left-color: #2e7d32;">
+        <p style="margin: 0; font-size: 18px;"><strong>✅ Subscription Details</strong></p>
+        <p style="margin: 10px 0;"><strong>Plan:</strong> ${subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)}</p>
+        <p style="margin: 10px 0;"><strong>Amount:</strong> ₦${subscription.amount.toLocaleString()}</p>
+        <p style="margin: 10px 0;"><strong>Start Date:</strong> ${new Date(subscription.startDate).toLocaleDateString()}</p>
+        <p style="margin: 10px 0;"><strong>Expiry Date:</strong> ${expiryText}</p>
+        <p style="margin: 10px 0;"><strong>Activated By:</strong> ${subscription.activatedBy === 'super_admin' ? 'System Administrator' : 'Self'}</p>
+      </div>
+      
+      <div style="text-align: center;">
+        <a href="${dashboardLink}" class="button">🚀 Go to Dashboard</a>
+      </div>
+      
+      <div style="margin-top: 30px; background: #f0f4f8; padding: 20px; border-radius: 10px;">
+        <p style="margin: 0;"><strong>✨ What you can do now:</strong></p>
+        <ul style="margin: 10px 0 0; padding-left: 20px;">
+          <li>Create and manage unlimited students</li>
+          <li>Add questions for all subjects</li>
+          <li>Schedule exams for your students</li>
+          <li>Generate detailed performance reports</li>
+          <li>Access all premium features</li>
+        </ul>
+      </div>
+      
+      <p style="color: #7f8c8d; font-style: italic; margin-top: 20px;">
+        "The only limit to our realization of tomorrow is our doubts of today." - Start achieving greatness!
+      </p>
+    `;
+    
+    const mailOptions = {
+      from: `"🧠 Einstein CBT" <${process.env.GMAIL_USER || 'noreply@einsteincbt.com'}>`,
+      to: email,
+      subject: `✅ Subscription Activated - ${subscription.plan} Plan`,
+      html: this.getBaseTemplate(content, 'Subscription Activated - Einstein CBT')
+    };
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('\n=== 📧 SUBSCRIPTION ACTIVATION EMAIL (DEV MODE) ===');
+      console.log(`To: ${email}`);
+      console.log(`Name: ${name}`);
+      console.log(`Plan: ${subscription.plan}`);
+      console.log(`Amount: ₦${subscription.amount}`);
+      console.log('================================================\n');
+      return { messageId: 'dev-mode-' + Date.now() };
+    }
+    
+    const transporter = this.initializeTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Subscription activation email sent:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('❌ Error sending subscription activation email:', error);
+    if (process.env.NODE_ENV !== 'production') return { messageId: 'dev-mode-failed' };
+    throw error;
+  }
+}
+
 }
 
 module.exports = EmailService;

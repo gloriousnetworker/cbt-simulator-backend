@@ -146,6 +146,26 @@ class User {
     };
   }
 
+  static async updateSubscription(id, subscriptionData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      subscription: subscriptionData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
   static async enable2FA(id, secret) {
     if (!db) {
       throw new Error('Database not initialized');

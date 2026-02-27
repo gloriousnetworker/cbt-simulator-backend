@@ -2,20 +2,27 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const questionController = require('../controllers/questionController');
-const { authenticate, authorize, checkAdminSubscription } = require('../middleware/authMiddleware');
+const { authenticate, authorize } = require('../middleware/authMiddleware');
 const { validate, createStudentValidation, createQuestionValidation } = require('../middleware/validationMiddleware');
 
 router.use(authenticate);
 router.use(authorize('admin'));
-router.use(checkAdminSubscription);
 
+// Public admin routes (always accessible)
 router.get('/profile', adminController.getProfile);
 router.put('/profile', adminController.updateProfile);
 router.post('/change-password', adminController.changePassword);
 
+// Subscription routes (always accessible)
+router.get('/subscription/plans', adminController.getSubscriptionPlans);
+router.post('/subscription/activate', adminController.activateSubscription);
+router.get('/subscription/status', adminController.getSubscriptionStatus);
+
+// Subject routes (always accessible - read-only without subscription)
 router.get('/subjects', adminController.getAllSubjects);
 router.get('/subjects/:subjectId', adminController.getSubjectById);
 
+// Protected routes (require active subscription)
 router.post('/students', validate(createStudentValidation), adminController.createStudent);
 router.get('/students', adminController.getAllStudents);
 router.get('/students/:studentId', adminController.getStudentById);

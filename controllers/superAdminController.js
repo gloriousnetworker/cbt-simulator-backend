@@ -714,6 +714,107 @@ const generateReport = async (req, res) => {
   }
 };
 
+const activateAdminSubscription = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const { plan } = req.body;
+    
+    const admin = await User.findById(adminId);
+    
+    if (!admin || admin.role !== 'admin') {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    
+    if (!SubscriptionService.subscriptionPlans[plan]) {
+      return res.status(400).json({ message: 'Invalid plan' });
+    }
+    
+    const subscriptionData = await SubscriptionService.activateSubscription(
+      adminId,
+      plan,
+      'super_admin'
+    );
+    
+    try {
+      await EmailService.sendSubscriptionActivationEmail(
+        admin.email,
+        admin.name,
+        subscriptionData
+      );
+    } catch (emailError) {
+      console.error('Subscription activation email failed:', emailError);
+    }
+    
+    res.json({
+      message: 'Admin subscription activated successfully',
+      subscription: subscriptionData
+    });
+  } catch (error) {
+    console.error('Activate admin subscription error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deactivateAdminSubscription = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    
+    const admin = await User.findById(adminId);
+    
+    if (!admin || admin.role !== 'admin') {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    
+    await User.update(adminId, {
+      subscription: {
+        ...admin.subscription,
+        active: false,
+        deactivatedAt: new Date(),
+        deactivatedBy: req.user.id
+      }
+    });
+    
+    res.json({
+      message: 'Admin subscription deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Deactivate admin subscription error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminSubscriptionStatus = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    
+    const admin = await User.findById(adminId);
+    
+    if (!admin || admin.role !== 'admin') {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    
+    const status = await SubscriptionService.checkSubscriptionStatus(adminId);
+    
+    res.json({
+      subscription: admin.subscription || null,
+      status
+    });
+  } catch (error) {
+    console.error('Get admin subscription status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubscriptionStats = async (req, res) => {
+  try {
+    const stats = await SubscriptionService.getSubscriptionStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Get subscription stats error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createAdmin,
   getAllAdmins,
@@ -738,5 +839,9 @@ module.exports = {
   updateSubject,
   deleteSubject,
   getDashboardStats,
-  generateReport
+  generateReport,
+  activateAdminSubscription,
+  deactivateAdminSubscription,
+  getAdminSubscriptionStatus,
+  getSubscriptionStats
 };

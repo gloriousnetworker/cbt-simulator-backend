@@ -24,7 +24,9 @@ const registerAdminValidation = [
   body('name').notEmpty(),
   body('schoolName').notEmpty(),
   body('schoolAddress').notEmpty(),
-  body('schoolPhone').notEmpty()
+  body('schoolPhone').notEmpty(),
+  body('subscription.plan').isIn(['monthly', 'termly', 'yearly', 'unlimited']).optional(),
+  body('subscription.paymentMethod').optional().isString()
 ];
 
 const createAdminValidation = [
