@@ -186,6 +186,13 @@ const setup2FA = async (req, res) => {
     
     await User.enable2FA(user.id, secret);
     
+    // Send 2FA setup email
+    try {
+      await EmailService.send2FASetupEmail(user.email, user.name, qrCode, secret);
+    } catch (emailError) {
+      console.error('Failed to send 2FA email:', emailError);
+    }
+    
     res.json({
       message: '2FA setup initiated',
       secret,
