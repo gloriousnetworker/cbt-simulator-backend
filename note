@@ -1,0 +1,2642 @@
+This is great! It worked. 
+
+Now I need a new feature for this admin dashboard as well again :
+
+
+That is the Exams feature for the admin... Currently there's exams setup for student. But what I need to happen is an endpoint for the admin to setup exams for his students 
+
+Example, you want to setup a mathematics exam for ss3 students , each of the subjects have questions attached to them, and the exams has a start date and an end date, has a start time and an end time, has instructions for students, have duration, have total marks, have pass mark, have some cool amazing features, also, an exams can have one or more subjects for a student to sit for at once. 
+
+Once that is created, the student can sit for that exam and once submitted, their score is sent to their admin -- just like a real life scenario and they can't sit for that exams again.
+
+These are the existing models to use : 
+
+User.js: 
+
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class User {
+  static collection = 'users';
+
+  static async create(userData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const user = {
+      id: userRef.id,
+      ...userData,
+      emailVerified: false,
+      verificationToken: userData.verificationToken || null,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorVerified: false,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await userRef.set(user);
+    return user;
+  }
+
+  static async findByEmail(email) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const snapshot = await db.collection(this.collection)
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) return null;
+    
+    return {
+      id: snapshot.docs[0].id,
+      ...snapshot.docs[0].data()
+    };
+  }
+
+  static async findById(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async findByVerificationToken(token) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const snapshot = await db.collection(this.collection)
+      .where('verificationToken', '==', token)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) return null;
+    
+    return {
+      id: snapshot.docs[0].id,
+      ...snapshot.docs[0].data()
+    };
+  }
+
+  static async findAll(filters = {}) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    let query = db.collection(this.collection);
+    
+    if (filters.role) {
+      query = query.where('role', '==', filters.role);
+    }
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    }
+    
+    if (filters.status) {
+      query = query.where('status', '==', filters.status);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async update(id, updateData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async verifyEmail(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      emailVerified: true,
+      verificationToken: null,
+      status: 'active',
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async updateSubscription(id, subscriptionData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      subscription: subscriptionData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async enable2FA(id, secret) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorEnabled: true,
+      twoFactorSecret: secret,
+      twoFactorVerified: false,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async verify2FA(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorVerified: true,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async disable2FA(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorVerified: false,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async toggleStatus(id, status) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const userRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await userRef.update({
+      status: status,
+      updatedAt: timestamp
+    });
+    
+    const updated = await userRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'User deleted successfully' };
+  }
+}
+
+module.exports = User;
+
+Student.js:
+
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class Student {
+  static collection = 'students';
+
+  static async create(studentData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const student = {
+      id: studentRef.id,
+      ...studentData,
+      examMode: false,
+      currentExam: null,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await studentRef.set(student);
+    return student;
+  }
+
+  static async findAll(filters = {}) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    let query = db.collection(this.collection);
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    }
+    
+    if (filters.class) {
+      query = query.where('class', '==', filters.class);
+    }
+    
+    if (filters.loginId) {
+      query = query.where('loginId', '==', filters.loginId);
+    }
+    
+    if (filters.status) {
+      query = query.where('status', '==', filters.status);
+    }
+    
+    if (filters.examMode !== undefined) {
+      query = query.where('examMode', '==', filters.examMode);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findById(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async update(id, updateData) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await studentRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await studentRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'Student deleted successfully' };
+  }
+
+  static async toggleExamMode(id, examMode) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await studentRef.update({
+      examMode: examMode,
+      updatedAt: timestamp
+    });
+    
+    const updated = await studentRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async setCurrentExam(id, examId) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const studentRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await studentRef.update({
+      currentExam: examId,
+      updatedAt: timestamp
+    });
+    
+    const updated = await studentRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async getStudentCount(schoolId) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const snapshot = await db.collection(this.collection)
+      .where('schoolId', '==', schoolId)
+      .get();
+    
+    return snapshot.size;
+  }
+}
+
+module.exports = Student;
+
+
+
+
+Subject.js: 
+
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class Subject {
+  static collection = 'subjects';
+
+  static async create(subjectData) {
+    const subjectRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const subject = {
+      id: subjectRef.id,
+      ...subjectData,
+      questionCount: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await subjectRef.set(subject);
+    return subject;
+  }
+
+  static async findAll(filters = {}) {
+    let query = db.collection(this.collection);
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    } else {
+      query = query.where('isGlobal', '==', true);
+    }
+    
+    if (filters.class) {
+      query = query.where('class', '==', filters.class);
+    }
+    
+    if (filters.examType) {
+      query = query.where('examType', '==', filters.examType);
+    }
+    
+    if (filters.name) {
+      query = query.where('name', '==', filters.name);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findById(id) {
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async update(id, updateData) {
+    const subjectRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await subjectRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await subjectRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'Subject deleted successfully' };
+  }
+
+  static async initializeDefaultSubjects() {
+    const defaultSubjects = [
+      { name: 'Mathematics', code: 'MATH', description: 'Mathematics', isGlobal: true, examType: 'WAEC', duration: 120, questionCount: 50 },
+      { name: 'English Language', code: 'ENG', description: 'English Language', isGlobal: true, examType: 'WAEC', duration: 120, questionCount: 50 }
+    ];
+    
+    for (const subject of defaultSubjects) {
+      const existing = await this.findAll({ name: subject.name });
+      if (existing.length === 0) {
+        await this.create(subject);
+      }
+    }
+  }
+}
+
+module.exports = Subject;
+
+
+Exam.js:
+
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class Exam {
+  static collection = 'exams';
+
+  static async create(examData) {
+    const examRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const exam = {
+      id: examRef.id,
+      ...examData,
+      status: 'in_progress',
+      tabSwitches: 0,
+      answers: {},
+      lastSaved: new Date(),
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await examRef.set(exam);
+    return exam;
+  }
+
+  static async findByStudent(studentId, status = null) {
+    let query = db.collection(this.collection)
+      .where('studentId', '==', studentId);
+    
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    
+    const snapshot = await query.orderBy('createdAt', 'desc').get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findBySchool(schoolId) {
+    const snapshot = await db.collection(this.collection)
+      .where('schoolId', '==', schoolId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findById(id) {
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async update(id, updateData) {
+    const examRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await examRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await examRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async saveAnswer(id, questionId, answer) {
+    const examRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await examRef.update({
+      [`answers.${questionId}`]: answer,
+      lastSaved: new Date(),
+      updatedAt: timestamp
+    });
+    
+    const updated = await examRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async calculateScore(answers, questions) {
+    let totalScore = 0;
+    let totalMarks = 0;
+    
+    questions.forEach(question => {
+      totalMarks += question.marks || 1;
+      const userAnswer = answers[question.id];
+      if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+        totalScore += question.marks || 1;
+      }
+    });
+    
+    return { totalScore, totalMarks };
+  }
+
+  static async getResults(studentId) {
+    const exams = await this.findByStudent(studentId, 'completed');
+    
+    const results = {
+      totalExams: exams.length,
+      averageScore: 0,
+      subjects: {}
+    };
+    
+    if (exams.length > 0) {
+      const totalScore = exams.reduce((sum, exam) => sum + (exam.score || 0), 0);
+      results.averageScore = totalScore / exams.length;
+      
+      exams.forEach(exam => {
+        if (!results.subjects[exam.subject]) {
+          results.subjects[exam.subject] = {
+            attempts: 0,
+            totalScore: 0,
+            averagePercentage: 0
+          };
+        }
+        results.subjects[exam.subject].attempts++;
+        results.subjects[exam.subject].totalScore += exam.score || 0;
+      });
+      
+      Object.keys(results.subjects).forEach(subject => {
+        const subj = results.subjects[subject];
+        subj.averagePercentage = (subj.totalScore / subj.attempts).toFixed(1);
+      });
+    }
+    
+    return results;
+  }
+}
+
+module.exports = Exam;
+
+
+Question.js:
+
+const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+
+class Question {
+  static collection = 'questions';
+
+  static async create(questionData) {
+    const questionRef = db.collection(this.collection).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    const question = {
+      id: questionRef.id,
+      ...questionData,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    
+    await questionRef.set(question);
+    return question;
+  }
+
+  static async findAll(filters = {}) {
+    let query = db.collection(this.collection);
+    
+    if (filters.subjectId) {
+      query = query.where('subjectId', '==', filters.subjectId);
+    }
+    
+    if (filters.schoolId) {
+      query = query.where('schoolId', '==', filters.schoolId);
+    }
+    
+    if (filters.class) {
+      if (filters.class === 'General') {
+        query = query.where('class', '==', 'General');
+      } else {
+        query = query.where('class', '==', filters.class);
+      }
+    }
+    
+    if (filters.examType) {
+      query = query.where('examType', '==', filters.examType);
+    }
+    
+    if (filters.difficulty) {
+      query = query.where('difficulty', '==', filters.difficulty);
+    }
+    
+    if (filters.mode) {
+      query = query.where('mode', '==', filters.mode);
+    }
+    
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findBySubject(subjectId) {
+    const snapshot = await db.collection(this.collection)
+      .where('subjectId', '==', subjectId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  static async findById(id) {
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
+  static async update(id, updateData) {
+    const questionRef = db.collection(this.collection).doc(id);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    
+    await questionRef.update({
+      ...updateData,
+      updatedAt: timestamp
+    });
+    
+    const updated = await questionRef.get();
+    return {
+      id: updated.id,
+      ...updated.data()
+    };
+  }
+
+  static async delete(id) {
+    await db.collection(this.collection).doc(id).delete();
+    return { message: 'Question deleted successfully' };
+  }
+
+  static async countBySubject(subjectId) {
+    const snapshot = await db.collection(this.collection)
+      .where('subjectId', '==', subjectId)
+      .get();
+    
+    return snapshot.size;
+  }
+
+  static async getRandomQuestions(subjectId, count, studentClass, mode) {
+    let query = db.collection(this.collection)
+      .where('subjectId', '==', subjectId);
+    
+    const filters = [];
+    if (mode) {
+      filters.push({ field: 'mode', operator: '==', value: mode });
+    }
+    
+    const classFilter = [];
+    classFilter.push({ field: 'class', operator: '==', value: 'General' });
+    if (studentClass) {
+      classFilter.push({ field: 'class', operator: '==', value: studentClass });
+    }
+    
+    const snapshot = await query.get();
+    let questions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    questions = questions.filter(q => 
+      q.class === 'General' || q.class === studentClass
+    );
+    
+    if (mode) {
+      questions = questions.filter(q => q.mode === mode);
+    }
+    
+    const shuffled = questions.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+  }
+}
+
+module.exports = Question;
+
+
+Controllers:
+
+adminController.js: 
+
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+const Student = require('../models/Student');
+const Exam = require('../models/Exam');
+const Ticket = require('../models/Ticket');
+const School = require('../models/School');
+const Subject = require('../models/Subject');
+const Question = require('../models/Question');
+const SubscriptionService = require('../services/subscriptionService');
+const EmailService = require('../services/emailService');
+
+const removeUndefined = (obj) => {
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+};
+
+const getProfile = async (req, res) => {
+  try {
+    const { password, ...admin } = req.user;
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    res.json({ 
+      admin,
+      subscription: req.user.subscription || null,
+      subscriptionStatus
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    
+    const updatedAdmin = await User.update(req.user.id, updateData);
+    
+    const { password, ...adminWithoutPassword } = updatedAdmin;
+    
+    res.json({
+      message: 'Profile updated successfully',
+      admin: adminWithoutPassword
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const admin = await User.findById(req.user.id);
+    
+    const isValidPassword = await bcrypt.compare(currentPassword, admin.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await User.update(req.user.id, { password: hashedPassword });
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllSubjects = async (req, res) => {
+  try {
+    const subjects = await Subject.findAll({ isGlobal: true });
+    res.json({ subjects });
+  } catch (error) {
+    console.error('Get all subjects error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubjectById = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    res.json({ subject });
+  } catch (error) {
+    console.error('Get subject by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubscriptionPlans = async (req, res) => {
+  try {
+    res.json({
+      plans: SubscriptionService.subscriptionPlans,
+      currentSubscription: req.user.subscription || null
+    });
+  } catch (error) {
+    console.error('Get subscription plans error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const activateSubscription = async (req, res) => {
+  try {
+    const { plan } = req.body;
+    
+    if (!SubscriptionService.subscriptionPlans[plan]) {
+      return res.status(400).json({ message: 'Invalid plan' });
+    }
+    
+    const subscriptionData = await SubscriptionService.activateSubscription(
+      req.user.id, 
+      plan, 
+      'self'
+    );
+    
+    try {
+      await EmailService.sendSubscriptionActivationEmail(
+        req.user.email,
+        req.user.name,
+        subscriptionData
+      );
+    } catch (emailError) {
+      console.error('Subscription activation email failed:', emailError);
+    }
+    
+    res.json({
+      message: 'Subscription activated successfully',
+      subscription: subscriptionData
+    });
+  } catch (error) {
+    console.error('Activate subscription error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubscriptionStatus = async (req, res) => {
+  try {
+    const status = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    res.json({
+      status,
+      subscription: req.user.subscription || null
+    });
+  } catch (error) {
+    console.error('Get subscription status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createStudent = async (req, res) => {
+  try {
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    if (!subscriptionStatus.active) {
+      return res.status(403).json({ 
+        message: 'Active subscription required to create students',
+        subscription: subscriptionStatus
+      });
+    }
+    
+    const { firstName, lastName, middleName, nin, phone, dateOfBirth, class: studentClass } = req.body;
+    
+    if (!firstName || !lastName || !studentClass) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: firstName, lastName, and class are required' 
+      });
+    }
+    
+    const school = await School.findById(req.user.schoolId);
+    
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+    
+    const schoolDomain = school.email ? school.email.split('@')[1] : 'school.edu.ng';
+    
+    const baseLoginId = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+    let finalLoginId = baseLoginId;
+    let counter = 1;
+    const maxAttempts = 100;
+    
+    while (counter <= maxAttempts) {
+      const existingStudents = await Student.findAll({ loginId: finalLoginId });
+      if (existingStudents.length === 0) {
+        break;
+      }
+      finalLoginId = `${baseLoginId}${counter.toString().padStart(3, '0')}`;
+      counter++;
+    }
+    
+    if (counter > maxAttempts) {
+      return res.status(500).json({ 
+        message: 'Unable to generate unique login ID after multiple attempts' 
+      });
+    }
+    
+    const email = `${finalLoginId}@${schoolDomain}`;
+    const hashedPassword = await bcrypt.hash('123456', 10);
+    
+    const subjects = ['Mathematics', 'English'];
+    
+    const studentData = removeUndefined({
+      firstName,
+      lastName,
+      middleName,
+      nin,
+      phone,
+      dateOfBirth,
+      class: studentClass,
+      schoolId: req.user.schoolId,
+      createdBy: req.user.id,
+      loginId: finalLoginId,
+      email,
+      password: hashedPassword,
+      status: 'active',
+      subjects,
+      examMode: false,
+      currentExam: null
+    });
+    
+    const student = await Student.create(studentData);
+    
+    const { password, ...studentWithoutPassword } = student;
+    
+    res.status(201).json({
+      message: 'Student created successfully',
+      student: studentWithoutPassword,
+      credentials: {
+        loginId: finalLoginId,
+        email,
+        password: '123456'
+      }
+    });
+  } catch (error) {
+    console.error('Create student error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllStudents = async (req, res) => {
+  try {
+    const students = await Student.findAll({ schoolId: req.user.schoolId });
+    
+    const studentsWithoutPassword = students.map(({ password, ...rest }) => rest);
+    
+    res.json({ students: studentsWithoutPassword });
+  } catch (error) {
+    console.error('Get all students error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getStudentById = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const exams = await Exam.findByStudent(studentId);
+    const performance = await Exam.getResults(studentId);
+    
+    const { password, ...studentWithoutPassword } = student;
+    
+    res.json({
+      student: studentWithoutPassword,
+      exams,
+      performance
+    });
+  } catch (error) {
+    console.error('Get student by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const updateData = removeUndefined(req.body);
+    const updatedStudent = await Student.update(studentId, updateData);
+    
+    const { password, ...studentWithoutPassword } = updatedStudent;
+    
+    res.json({
+      message: 'Student updated successfully',
+      student: studentWithoutPassword
+    });
+  } catch (error) {
+    console.error('Update student error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    await Student.delete(studentId);
+    
+    res.json({ message: 'Student deleted successfully' });
+  } catch (error) {
+    console.error('Delete student error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const toggleExamMode = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { examMode } = req.body;
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const updatedStudent = await Student.toggleExamMode(studentId, examMode);
+    
+    const { password, ...studentWithoutPassword } = updatedStudent;
+    
+    res.json({
+      message: `Exam mode ${examMode ? 'enabled' : 'disabled'} successfully`,
+      student: studentWithoutPassword
+    });
+  } catch (error) {
+    console.error('Toggle exam mode error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const addStudentSubject = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { subjectId } = req.body;
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subjects = student.subjects || [];
+    
+    if (subjects.includes(subject.name)) {
+      return res.status(400).json({ message: 'Subject already assigned to student' });
+    }
+    
+    subjects.push(subject.name);
+    
+    const updatedStudent = await Student.update(studentId, { subjects });
+    
+    res.json({
+      message: 'Subject added successfully',
+      subjects: updatedStudent.subjects
+    });
+  } catch (error) {
+    console.error('Add subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const removeStudentSubject = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { subject } = req.body;
+    
+    if (subject === 'Mathematics' || subject === 'English') {
+      return res.status(400).json({ message: 'Cannot remove required subjects' });
+    }
+    
+    const student = await Student.findById(studentId);
+    
+    if (!student || student.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subjects = student.subjects.filter(s => s !== subject);
+    
+    const updatedStudent = await Student.update(studentId, { subjects });
+    
+    res.json({
+      message: 'Subject removed successfully',
+      subjects: updatedStudent.subjects
+    });
+  } catch (error) {
+    console.error('Remove subject error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createTicket = async (req, res) => {
+  try {
+    const { subject, category, priority, description } = req.body;
+    
+    const ticketData = removeUndefined({
+      subject,
+      category,
+      priority,
+      description,
+      schoolId: req.user.schoolId,
+      createdBy: req.user.id,
+      createdByType: 'admin'
+    });
+    
+    const ticket = await Ticket.create(ticketData);
+    
+    res.status(201).json({
+      message: 'Ticket created successfully',
+      ticket
+    });
+  } catch (error) {
+    console.error('Create ticket error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getTickets = async (req, res) => {
+  try {
+    const tickets = await Ticket.findAll({ schoolId: req.user.schoolId });
+    res.json({ tickets });
+  } catch (error) {
+    console.error('Get tickets error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const replyToTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { message } = req.body;
+    
+    const ticket = await Ticket.findById(ticketId);
+    
+    if (!ticket || ticket.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Ticket not found' });
+    }
+    
+    const updatedTicket = await Ticket.addMessage(ticketId, {
+      sender: 'admin',
+      senderId: req.user.id,
+      content: message
+    });
+    
+    res.json({
+      message: 'Reply sent successfully',
+      ticket: updatedTicket
+    });
+  } catch (error) {
+    console.error('Reply to ticket error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getDashboardStats = async (req, res) => {
+  try {
+    const subscriptionStatus = await SubscriptionService.checkSubscriptionStatus(req.user.id);
+    
+    const students = await Student.findAll({ schoolId: req.user.schoolId });
+    const totalStudents = students.length;
+    
+    const exams = await Exam.findBySchool(req.user.schoolId);
+    
+    const totalExams = exams.length;
+    const averageScore = exams.reduce((sum, exam) => sum + (exam.score || 0), 0) / totalExams || 0;
+    
+    const recentExams = exams.slice(0, 10);
+    
+    const studentsInExamMode = students.filter(s => s.examMode).length;
+    
+    const subjectPerformance = {};
+    exams.forEach(exam => {
+      if (!subjectPerformance[exam.subject]) {
+        subjectPerformance[exam.subject] = {
+          total: 0,
+          count: 0
+        };
+      }
+      subjectPerformance[exam.subject].total += exam.score || 0;
+      subjectPerformance[exam.subject].count++;
+    });
+    
+    Object.keys(subjectPerformance).forEach(subject => {
+      subjectPerformance[subject].average = 
+        subjectPerformance[subject].total / subjectPerformance[subject].count;
+    });
+    
+    const tickets = await Ticket.findAll({ schoolId: req.user.schoolId });
+    const openTickets = tickets.filter(t => t.status === 'open').length;
+    
+    res.json({
+      subscription: subscriptionStatus,
+      stats: {
+        totalStudents,
+        studentsInExamMode,
+        totalExams,
+        averageScore,
+        openTickets
+      },
+      recentExams,
+      subjectPerformance
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  getProfile,
+  updateProfile,
+  changePassword,
+  getAllSubjects,
+  getSubjectById,
+  getSubscriptionPlans,
+  activateSubscription,
+  getSubscriptionStatus,
+  createStudent,
+  getAllStudents,
+  getStudentById,
+  updateStudent,
+  deleteStudent,
+  toggleExamMode,
+  addStudentSubject,
+  removeStudentSubject,
+  createTicket,
+  getTickets,
+  replyToTicket,
+  getDashboardStats
+};
+
+
+
+Student controller.js: 
+
+const bcrypt = require('bcryptjs');
+const Student = require('../models/Student');
+const Subject = require('../models/Subject');
+const Exam = require('../models/Exam');
+const TokenService = require('../services/tokenService');
+const { db } = require('../config/firebase');
+
+const studentLogin = async (req, res) => {
+  try {
+    const { loginId, nin, password } = req.body;
+    
+    let student;
+    
+    if (!db) {
+      return res.status(500).json({ 
+        message: 'Database connection error',
+        error: 'Firebase not initialized'
+      });
+    }
+    
+    if (loginId) {
+      const snapshot = await db.collection('students')
+        .where('loginId', '==', loginId)
+        .limit(1)
+        .get();
+      
+      if (!snapshot.empty) {
+        student = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+      }
+    } else if (nin) {
+      const snapshot = await db.collection('students')
+        .where('nin', '==', nin)
+        .limit(1)
+        .get();
+      
+      if (!snapshot.empty) {
+        student = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+      }
+    }
+    
+    if (!student) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    const isValidPassword = await bcrypt.compare(password, student.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    if (student.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active' });
+    }
+    
+    const tokens = TokenService.generateTokens({
+      id: student.id,
+      email: student.email,
+      role: 'student'
+    });
+    
+    TokenService.setTokenCookies(res, tokens);
+    
+    const { password: pwd, ...studentWithoutPassword } = student;
+    
+    res.json({
+      message: 'Login successful',
+      user: {
+        ...studentWithoutPassword,
+        role: 'student'
+      },
+      examMode: student.examMode || false,
+      currentExam: student.currentExam || null
+    });
+  } catch (error) {
+    console.error('Student login error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getProfile = async (req, res) => {
+  try {
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const performance = await Exam.getResults(req.student.id);
+    const currentExam = student.currentExam ? await Exam.findById(student.currentExam) : null;
+    
+    const { password: pwd, ...studentWithoutPassword } = student;
+    
+    res.json({
+      student: studentWithoutPassword,
+      performance,
+      examMode: student.examMode,
+      currentExam: currentExam ? {
+        id: currentExam.id,
+        subject: currentExam.subject,
+        subjectId: currentExam.subjectId,
+        status: currentExam.status
+      } : null
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const { phone, dateOfBirth } = req.body;
+    
+    const student = await Student.update(req.student.id, {
+      phone,
+      dateOfBirth
+    });
+    
+    const { password, ...studentWithoutPassword } = student;
+    
+    res.json({
+      message: 'Profile updated successfully',
+      student: studentWithoutPassword
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const student = await Student.findById(req.student.id);
+    
+    const isValidPassword = await bcrypt.compare(currentPassword, student.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await Student.update(req.student.id, { password: hashedPassword });
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getSubjects = async (req, res) => {
+  try {
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subjectNames = student.subjects || [];
+    const subjects = [];
+    
+    for (const name of subjectNames) {
+      const subjectList = await Subject.findAll({ 
+        name: name
+      });
+      
+      subjects.push(...subjectList);
+    }
+    
+    const uniqueSubjects = subjects.filter((subject, index, self) => 
+      index === self.findIndex(s => s.id === subject.id)
+    );
+    
+    res.json({ 
+      subjects: uniqueSubjects,
+      subjectNames: subjectNames 
+    });
+  } catch (error) {
+    console.error('Get subjects error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPracticeQuestions = async (req, res) => {
+  try {
+    const { subjectId, count = 20 } = req.query;
+    
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const questions = await Question.getRandomQuestions(
+      subjectId, 
+      count, 
+      student.class,
+      'practice'
+    );
+    
+    const questionsForClient = questions.map(({ correctAnswer, ...rest }) => rest);
+    
+    res.json({ 
+      subject: subject.name,
+      questions: questionsForClient 
+    });
+  } catch (error) {
+    console.error('Get practice questions error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getExamHistory = async (req, res) => {
+  try {
+    const exams = await Exam.findByStudent(req.student.id, 'completed');
+    
+    res.json({ exams });
+  } catch (error) {
+    console.error('Get exam history error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  studentLogin,
+  getProfile,
+  updateProfile,
+  changePassword,
+  getSubjects,
+  getPracticeQuestions,
+  getExamHistory
+};
+
+
+Exams Controller.js: 
+
+const Exam = require('../models/Exam');
+const Student = require('../models/Student');
+const Subject = require('../models/Subject');
+const Question = require('../models/Question');
+
+const startExam = async (req, res) => {
+  try {
+    const { subjectId } = req.body;
+    
+    const student = await Student.findById(req.student.id);
+    
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    if (!student.examMode) {
+      return res.status(403).json({ message: 'Exam mode is not enabled for this student' });
+    }
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    if (!student.subjects?.includes(subject.name)) {
+      return res.status(403).json({ message: 'You are not enrolled in this subject' });
+    }
+    
+    const existingExam = await Exam.findByStudent(req.student.id, 'in_progress');
+    const inProgressExam = existingExam.find(e => e.subjectId === subjectId);
+    
+    if (inProgressExam) {
+      const examQuestions = inProgressExam.questions.map(({ correctAnswer, ...rest }) => rest);
+      
+      return res.json({
+        message: 'Resuming existing exam',
+        exam: {
+          id: inProgressExam.id,
+          subject: inProgressExam.subject,
+          subjectId: inProgressExam.subjectId,
+          duration: inProgressExam.duration,
+          questionCount: inProgressExam.questionCount,
+          questions: examQuestions,
+          answers: inProgressExam.answers || {},
+          startTime: inProgressExam.startTime,
+          status: inProgressExam.status,
+          timeSpent: inProgressExam.timeSpent || 0
+        }
+      });
+    }
+    
+    const questions = await Question.getRandomQuestions(
+      subjectId, 
+      subject.questionCount, 
+      student.class,
+      'exam'
+    );
+    
+    if (questions.length === 0) {
+      return res.status(404).json({ message: 'No exam questions available for this subject' });
+    }
+    
+    const examQuestions = questions.map(q => ({
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      marks: q.marks || 1,
+      difficulty: q.difficulty,
+      topic: q.topic
+    }));
+    
+    const exam = await Exam.create({
+      studentId: req.student.id,
+      schoolId: student.schoolId,
+      subjectId: subjectId,
+      subject: subject.name,
+      duration: subject.duration,
+      questionCount: examQuestions.length,
+      questions: questions,
+      startTime: new Date(),
+      status: 'in_progress',
+      answers: {},
+      tabSwitches: 0,
+      score: 0,
+      totalMarks: examQuestions.reduce((sum, q) => sum + (q.marks || 1), 0)
+    });
+    
+    await Student.setCurrentExam(req.student.id, exam.id);
+    
+    const questionsForClient = examQuestions.map(q => q);
+    
+    res.status(201).json({
+      message: 'Exam started',
+      exam: {
+        id: exam.id,
+        subject: exam.subject,
+        subjectId: exam.subjectId,
+        duration: exam.duration,
+        questionCount: exam.questionCount,
+        questions: questionsForClient,
+        startTime: exam.startTime,
+        status: exam.status
+      }
+    });
+  } catch (error) {
+    console.error('Start exam error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const submitExam = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await Exam.findById(examId);
+    
+    if (!exam || exam.studentId !== req.student.id) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    if (exam.status === 'completed') {
+      return res.status(400).json({ message: 'Exam already submitted' });
+    }
+    
+    const questions = exam.questions || [];
+    let totalScore = 0;
+    
+    questions.forEach(question => {
+      const userAnswer = exam.answers[question.id];
+      if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+        totalScore += question.marks || 1;
+      }
+    });
+    
+    const percentage = ((totalScore / exam.totalMarks) * 100).toFixed(1);
+    
+    const updatedExam = await Exam.update(examId, {
+      score: totalScore,
+      percentage: parseFloat(percentage),
+      status: 'completed',
+      endTime: new Date()
+    });
+    
+    await Student.setCurrentExam(req.student.id, null);
+    
+    res.json({
+      message: 'Exam submitted successfully',
+      exam: {
+        id: updatedExam.id,
+        subject: updatedExam.subject,
+        subjectId: updatedExam.subjectId,
+        score: updatedExam.score,
+        totalMarks: updatedExam.totalMarks,
+        percentage: updatedExam.percentage,
+        endTime: updatedExam.endTime
+      }
+    });
+  } catch (error) {
+    console.error('Submit exam error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getExamById = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await Exam.findById(examId);
+    
+    if (!exam || exam.studentId !== req.student.id) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    const examForClient = {
+      ...exam,
+      questions: exam.questions.map(({ correctAnswer, ...rest }) => rest)
+    };
+    
+    res.json({ exam: examForClient });
+  } catch (error) {
+    console.error('Get exam by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const recordTabSwitch = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    
+    const exam = await Exam.findById(examId);
+    
+    if (!exam || exam.studentId !== req.student.id) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    const tabSwitches = (exam.tabSwitches || 0) + 1;
+    let autoSubmitted = false;
+    
+    if (tabSwitches >= 3) {
+      const questions = exam.questions || [];
+      let totalScore = 0;
+      
+      questions.forEach(question => {
+        const userAnswer = exam.answers[question.id];
+        if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+          totalScore += question.marks || 1;
+        }
+      });
+      
+      const percentage = exam.totalMarks ? ((totalScore / exam.totalMarks) * 100).toFixed(1) : 0;
+      
+      await Exam.update(examId, {
+        tabSwitches,
+        score: totalScore,
+        percentage: parseFloat(percentage),
+        status: 'completed',
+        endTime: new Date(),
+        autoSubmitted: true
+      });
+      
+      await Student.setCurrentExam(req.student.id, null);
+      autoSubmitted = true;
+    } else {
+      await Exam.update(examId, { tabSwitches });
+    }
+    
+    res.json({
+      message: autoSubmitted ? 'Exam auto-submitted due to tab switching' : 'Tab switch recorded',
+      tabSwitches,
+      autoSubmitted
+    });
+  } catch (error) {
+    console.error('Record tab switch error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const saveAnswer = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { questionId, answer } = req.body;
+    
+    const exam = await Exam.findById(examId);
+    
+    if (!exam || exam.studentId !== req.student.id) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+    
+    if (exam.status === 'completed') {
+      return res.status(400).json({ message: 'Exam already submitted' });
+    }
+    
+    await Exam.saveAnswer(examId, questionId, answer);
+    
+    res.json({ message: 'Answer saved' });
+  } catch (error) {
+    console.error('Save answer error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getResults = async (req, res) => {
+  try {
+    const exams = await Exam.findByStudent(req.student.id, 'completed');
+    
+    const results = exams.map(exam => ({
+      id: exam.id,
+      subject: exam.subject,
+      subjectId: exam.subjectId,
+      score: exam.score || 0,
+      totalMarks: exam.totalMarks || 0,
+      percentage: exam.percentage || 0,
+      date: exam.endTime || exam.createdAt,
+      duration: exam.duration
+    }));
+    
+    res.json({ results });
+  } catch (error) {
+    console.error('Get results error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPerformance = async (req, res) => {
+  try {
+    const performance = await Exam.getResults(req.student.id);
+    res.json({ performance });
+  } catch (error) {
+    console.error('Get performance error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  startExam,
+  submitExam,
+  getExamById,
+  recordTabSwitch,
+  saveAnswer,
+  getResults,
+  getPerformance
+};
+
+
+
+QuestionsController.js: 
+
+const Question = require('../models/Question');
+const Subject = require('../models/Subject');
+
+const removeUndefined = (obj) => {
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+};
+
+const createQuestion = async (req, res) => {
+  try {
+    const { 
+      subjectId, 
+      question, 
+      options, 
+      correctAnswer, 
+      marks, 
+      explanation, 
+      difficulty, 
+      topic,
+      class: studentClass,
+      examType,
+      mode
+    } = req.body;
+    
+    if (!subjectId || !question || !options || options.length !== 4 || correctAnswer === undefined) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: subjectId, question, options (4), and correctAnswer are required' 
+      });
+    }
+    
+    if (!mode || !['exam', 'practice'].includes(mode)) {
+      return res.status(400).json({ 
+        message: 'Mode is required and must be either "exam" or "practice"' 
+      });
+    }
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const questionData = removeUndefined({
+      subjectId,
+      subjectName: subject.name,
+      question,
+      options,
+      correctAnswer,
+      marks: marks || 1,
+      explanation,
+      difficulty: difficulty || 'medium',
+      topic: topic || 'General',
+      class: studentClass || 'General',
+      examType: examType || subject.examType,
+      mode,
+      schoolId: req.user.schoolId,
+      createdBy: req.user.id
+    });
+    
+    const question_ = await Question.create(questionData);
+    
+    const questions = await Question.findBySubject(subjectId);
+    await Subject.update(subjectId, { questionCount: questions.length });
+    
+    res.status(201).json({
+      message: 'Question created successfully',
+      question: question_
+    });
+  } catch (error) {
+    console.error('Create question error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllQuestions = async (req, res) => {
+  try {
+    const { subjectId, class: studentClass, examType, difficulty, mode } = req.query;
+    
+    const filters = { schoolId: req.user.schoolId };
+    
+    if (subjectId) filters.subjectId = subjectId;
+    if (studentClass) filters.class = studentClass;
+    if (examType) filters.examType = examType;
+    if (difficulty) filters.difficulty = difficulty;
+    if (mode) filters.mode = mode;
+    
+    const questions = await Question.findAll(filters);
+    
+    res.json({ questions });
+  } catch (error) {
+    console.error('Get all questions error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getQuestionById = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    
+    const question = await Question.findById(questionId);
+    
+    if (!question || question.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    res.json({ question });
+  } catch (error) {
+    console.error('Get question by ID error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    
+    const question = await Question.findById(questionId);
+    
+    if (!question || question.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    const updateData = removeUndefined(req.body);
+    const updatedQuestion = await Question.update(questionId, updateData);
+    
+    res.json({
+      message: 'Question updated successfully',
+      question: updatedQuestion
+    });
+  } catch (error) {
+    console.error('Update question error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    
+    const question = await Question.findById(questionId);
+    
+    if (!question || question.schoolId !== req.user.schoolId) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    const subjectId = question.subjectId;
+    
+    await Question.delete(questionId);
+    
+    const questions = await Question.findBySubject(subjectId);
+    await Subject.update(subjectId, { questionCount: questions.length });
+    
+    res.json({ message: 'Question deleted successfully' });
+  } catch (error) {
+    console.error('Delete question error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkImportQuestions = async (req, res) => {
+  try {
+    const { subjectId, questions } = req.body;
+    
+    if (!subjectId || !questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ message: 'Invalid request: subjectId and questions array required' });
+    }
+    
+    const subject = await Subject.findById(subjectId);
+    
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    
+    const createdQuestions = [];
+    const errors = [];
+    
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      
+      if (!q.question || !q.options || q.options.length !== 4 || q.correctAnswer === undefined || !q.mode) {
+        errors.push({ index: i, message: 'Missing required fields' });
+        continue;
+      }
+      
+      if (!['exam', 'practice'].includes(q.mode)) {
+        errors.push({ index: i, message: 'Mode must be either "exam" or "practice"' });
+        continue;
+      }
+      
+      const questionData = {
+        subjectId,
+        subjectName: subject.name,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        marks: q.marks || 1,
+        explanation: q.explanation || '',
+        difficulty: q.difficulty || 'medium',
+        topic: q.topic || 'General',
+        class: q.class || 'General',
+        examType: q.examType || subject.examType,
+        mode: q.mode,
+        schoolId: req.user.schoolId,
+        createdBy: req.user.id
+      };
+      
+      const question_ = await Question.create(questionData);
+      createdQuestions.push(question_);
+    }
+    
+    const allQuestions = await Question.findBySubject(subjectId);
+    await Subject.update(subjectId, { questionCount: allQuestions.length });
+    
+    res.status(201).json({
+      message: `Successfully imported ${createdQuestions.length} questions`,
+      count: createdQuestions.length,
+      errors: errors.length > 0 ? errors : undefined,
+      questions: createdQuestions
+    });
+  } catch (error) {
+    console.error('Bulk import questions error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  createQuestion,
+  getAllQuestions,
+  getQuestionById,
+  updateQuestion,
+  deleteQuestion,
+  bulkImportQuestions
+};
+
+
+authController.js: 
+
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const User = require('../models/User');
+const School = require('../models/School');
+const TokenService = require('../services/tokenService');
+const TwoFactorService = require('../services/twoFactorService');
+const EmailService = require('../services/emailService');
+const Subject = require('../models/Subject');
+
+const registerAdmin = async (req, res) => {
+  try {
+    const { email, password, name, schoolName, schoolAddress, schoolPhone } = req.body;
+    
+    const existingUser = await User.findByEmail(email);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    const school = await School.create({
+      name: schoolName,
+      address: schoolAddress,
+      phone: schoolPhone,
+      email,
+      status: 'pending'
+    });
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      name,
+      role: 'admin',
+      schoolId: school.id,
+      status: 'pending',
+      verificationToken,
+      subscription: null
+    });
+    
+    await EmailService.sendVerificationEmail(email, verificationToken, name);
+    
+    const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
+    
+    const response = {
+      message: 'Registration successful. Please check your email to verify your account.',
+      user: userWithoutPassword,
+      school,
+      subscription: null
+    };
+    
+    if (process.env.NODE_ENV !== 'production') {
+      response.verificationToken = verificationToken;
+      response.devNote = 'In development mode, use this token to verify email';
+    }
+    
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('Register admin error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    const user = await User.findByVerificationToken(token);
+    
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+    
+    await User.verifyEmail(user.id);
+    
+    if (user.schoolId) {
+      await School.update(user.schoolId, { status: 'active' });
+      await EmailService.sendSchoolApprovalEmail(user.email, user.schoolId);
+    }
+    
+    res.json({ 
+      message: 'Email verified successfully. Your account is now active. You can now set up your subscription from the dashboard.',
+      subscriptionRequired: false
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const user = await User.findByEmail(email);
+    
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    if (user.status !== 'active') {
+      return res.status(401).json({ message: 'Account is not active. Please verify your email.' });
+    }
+    
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    if (user.twoFactorEnabled && (user.role === 'super_admin' || user.role === 'admin')) {
+      const tempToken = TokenService.generateTempToken(user);
+      
+      return res.json({
+        message: '2FA required',
+        requiresTwoFactor: true,
+        tempToken,
+        userId: user.id
+      });
+    }
+    
+    const tokens = TokenService.generateTokens(user);
+    TokenService.setTokenCookies(res, tokens);
+    
+    const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
+    
+    const hasSubscription = user.subscription && user.subscription.active;
+    
+    res.json({
+      message: 'Login successful',
+      user: userWithoutPassword,
+      tokens,
+      hasSubscription,
+      subscription: user.subscription || null
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verify2FA = async (req, res) => {
+  try {
+    const { userId, token, tempToken } = req.body;
+    
+    const decoded = TokenService.verifyTempToken(tempToken);
+    
+    if (!decoded || decoded.id !== userId) {
+      return res.status(401).json({ message: 'Invalid or expired temporary token' });
+    }
+    
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ message: '2FA not set up for this user' });
+    }
+    
+    const isValid = TwoFactorService.verifyToken(user.twoFactorSecret, token);
+    
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid 2FA token' });
+    }
+    
+    await User.verify2FA(userId);
+    
+    const tokens = TokenService.generateTokens(user);
+    TokenService.setTokenCookies(res, tokens);
+    
+    const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
+    
+    res.json({
+      message: '2FA verification successful',
+      user: userWithoutPassword,
+      tokens
+    });
+  } catch (error) {
+    console.error('2FA verification error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const setup2FA = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      return res.status(403).json({ message: '2FA is only available for super admins and admins' });
+    }
+    
+    if (user.twoFactorEnabled) {
+      return res.status(400).json({ message: '2FA is already enabled' });
+    }
+    
+    const { secret, otpauthUrl } = TwoFactorService.generateSecret(user.email);
+    
+    const qrCode = await TwoFactorService.generateQRCode(otpauthUrl);
+    
+    await User.enable2FA(user.id, secret);
+    
+    try {
+      await EmailService.send2FASetupEmail(user.email, user.name, qrCode, secret);
+    } catch (emailError) {
+      console.error('Failed to send 2FA email:', emailError);
+    }
+    
+    res.json({
+      message: '2FA setup initiated',
+      secret,
+      qrCode,
+      otpauthUrl
+    });
+  } catch (error) {
+    console.error('2FA setup error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verify2FASetup = async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = req.user;
+    
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ message: '2FA not set up' });
+    }
+    
+    const isValid = TwoFactorService.verifyToken(user.twoFactorSecret, token);
+    
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid 2FA token' });
+    }
+    
+    await User.verify2FA(user.id);
+    
+    res.json({
+      message: '2FA enabled successfully'
+    });
+  } catch (error) {
+    console.error('2FA verification error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const disable2FA = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({ message: '2FA is not enabled' });
+    }
+    
+    await User.disable2FA(user.id);
+    
+    res.json({
+      message: '2FA disabled successfully'
+    });
+  } catch (error) {
+    console.error('2FA disable error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    TokenService.clearTokenCookies(res);
+    res.json({ message: 'Logout successful' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    
+    if (!refreshToken) {
+      return res.status(401).json({ message: 'Refresh token required' });
+    }
+    
+    const decoded = TokenService.verifyRefreshToken(refreshToken);
+    
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
+    
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    
+    const tokens = TokenService.generateTokens(user);
+    TokenService.setTokenCookies(res, tokens);
+    
+    res.json({ message: 'Token refreshed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getMe = async (req, res) => {
+  try {
+    const { password: _, twoFactorSecret, ...user } = req.user;
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createSuperAdmin = async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    
+    const existingUser = await User.findByEmail(email);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      name,
+      role: 'super_admin',
+      status: 'active',
+      emailVerified: true
+    });
+    
+    await Subject.initializeDefaultSubjects();
+    
+    const { password: _, twoFactorSecret, ...userWithoutPassword } = user;
+    
+    res.status(201).json({
+      message: 'Super admin created successfully',
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  registerAdmin,
+  verifyEmail,
+  login,
+  verify2FA,
+  setup2FA,
+  verify2FASetup,
+  disable2FA,
+  logout,
+  refreshToken,
+  getMe,
+  createSuperAdmin
+};
+
+
+Help me add the new route for setting up a full exam setting for students for an admin, it should be fully loaded , NO COMMENTS, NO ERRORS -- GENERATE FULL CODES FOR THE BACKEND REFACTORED CODES 
+
+SEE the existing routes : 
+
+adminRoutes.js:
+
+// routes/adminRoutes.js (updated section)
+const express = require('express');
+const router = express.Router();
+const adminController = require('../controllers/adminController');
+const questionController = require('../controllers/questionController');
+const paymentController = require('../controllers/paymentController');
+const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { validate, createStudentValidation, createQuestionValidation } = require('../middleware/validationMiddleware');
+
+router.use(authenticate);
+router.use(authorize('admin'));
+
+// Public admin routes (always accessible)
+router.get('/profile', adminController.getProfile);
+router.put('/profile', adminController.updateProfile);
+router.post('/change-password', adminController.changePassword);
+
+// Subscription and Payment routes
+router.get('/subscription/plans', adminController.getSubscriptionPlans);
+router.post('/subscription/initialize', paymentController.initializePayment);
+router.get('/subscription/verify/:reference', paymentController.verifyPayment);
+router.get('/subscription/payments', paymentController.getPaymentHistory);
+router.get('/subscription/status', adminController.getSubscriptionStatus);
+router.get('/payment/methods', paymentController.getPaymentMethods);
+
+// Webhook (public endpoint - no auth)
+router.post('/payment/webhook', paymentController.handleWebhook);
+
+// Subject routes (always accessible - read-only without subscription)
+router.get('/subjects', adminController.getAllSubjects);
+router.get('/subjects/:subjectId', adminController.getSubjectById);
+
+// Protected routes (require active subscription)
+router.post('/students', validate(createStudentValidation), adminController.createStudent);
+router.get('/students', adminController.getAllStudents);
+router.get('/students/:studentId', adminController.getStudentById);
+router.put('/students/:studentId', adminController.updateStudent);
+router.delete('/students/:studentId', adminController.deleteStudent);
+router.patch('/students/:studentId/exam-mode', adminController.toggleExamMode);
+router.post('/students/:studentId/subjects', adminController.addStudentSubject);
+router.delete('/students/:studentId/subjects', adminController.removeStudentSubject);
+
+router.post('/questions', validate(createQuestionValidation), questionController.createQuestion);
+router.post('/questions/bulk-import', questionController.bulkImportQuestions);
+router.get('/questions', questionController.getAllQuestions);
+router.get('/questions/:questionId', questionController.getQuestionById);
+router.put('/questions/:questionId', questionController.updateQuestion);
+router.delete('/questions/:questionId', questionController.deleteQuestion);
+
+router.post('/tickets', adminController.createTicket);
+router.get('/tickets', adminController.getTickets);
+router.post('/tickets/:ticketId/reply', adminController.replyToTicket);
+
+router.get('/dashboard/stats', adminController.getDashboardStats);
+
+module.exports = router;
+
+

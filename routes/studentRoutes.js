@@ -1,34 +1,32 @@
+// routes/studentRoutes.js (updated - add exam routes for students)
 const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/studentController');
 const examController = require('../controllers/examController');
-const { authenticateStudent } = require('../middleware/studentAuthMiddleware');
+const examSetupController = require('../controllers/examSetupController');
+const { authenticateStudent } = require('../middleware/authMiddleware');
 
 // Public route
 router.post('/login', studentController.studentLogin);
 
-// Protected routes - all require authentication
+// Protected routes
 router.use(authenticateStudent);
 
-// Profile routes
 router.get('/profile', studentController.getProfile);
 router.put('/profile', studentController.updateProfile);
-router.put('/change-password', studentController.changePassword);
-
-// Subject routes
+router.post('/change-password', studentController.changePassword);
 router.get('/subjects', studentController.getSubjects);
 router.get('/practice', studentController.getPracticeQuestions);
-router.get('/exam-history', studentController.getExamHistory);
+router.get('/history', studentController.getExamHistory);
 
 // Exam routes
+router.get('/available-exams', examSetupController.getAvailableExamsForStudent);
 router.post('/exams/start', examController.startExam);
 router.post('/exams/:examId/submit', examController.submitExam);
 router.get('/exams/:examId', examController.getExamById);
 router.post('/exams/:examId/tab-switch', examController.recordTabSwitch);
 router.post('/exams/:examId/save-answer', examController.saveAnswer);
-
-// Results routes
-router.get('/results/all', examController.getResults);
-router.get('/performance/summary', examController.getPerformance);
+router.get('/results', examController.getResults);
+router.get('/performance', examController.getPerformance);
 
 module.exports = router;

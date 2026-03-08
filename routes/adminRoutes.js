@@ -1,9 +1,10 @@
-// routes/adminRoutes.js (updated section)
+// routes/adminRoutes.js (updated)
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const questionController = require('../controllers/questionController');
 const paymentController = require('../controllers/paymentController');
+const examSetupController = require('../controllers/examSetupController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const { validate, createStudentValidation, createQuestionValidation } = require('../middleware/validationMiddleware');
 
@@ -29,6 +30,17 @@ router.post('/payment/webhook', paymentController.handleWebhook);
 // Subject routes (always accessible - read-only without subscription)
 router.get('/subjects', adminController.getAllSubjects);
 router.get('/subjects/:subjectId', adminController.getSubjectById);
+
+// Exam Setup routes (require active subscription)
+router.post('/exam-setups', examSetupController.createExamSetup);
+router.get('/exam-setups', examSetupController.getAllExamSetups);
+router.get('/exam-setups/:examId', examSetupController.getExamSetupById);
+router.put('/exam-setups/:examId', examSetupController.updateExamSetup);
+router.delete('/exam-setups/:examId', examSetupController.deleteExamSetup);
+router.post('/exam-setups/:examId/activate', examSetupController.activateExam);
+router.post('/exam-setups/:examId/deactivate', examSetupController.deactivateExam);
+router.get('/exam-setups/:examId/results', examSetupController.getExamResults);
+router.post('/exam-setups/:examId/assign-students', examSetupController.assignStudentsToExam);
 
 // Protected routes (require active subscription)
 router.post('/students', validate(createStudentValidation), adminController.createStudent);
