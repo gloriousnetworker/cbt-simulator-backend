@@ -1,6 +1,5 @@
 // models/Payment.js
 const { db } = require('../config/firebase');
-const admin = require('firebase-admin');
 
 class Payment {
   static collection = 'payments';
@@ -8,7 +7,7 @@ class Payment {
   static async create(paymentData) {
     try {
       const paymentRef = db.collection(this.collection).doc();
-      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const timestamp = new Date();
       
       const payment = {
         id: paymentRef.id,
@@ -80,7 +79,7 @@ class Payment {
   static async update(id, data) {
     try {
       const paymentRef = db.collection(this.collection).doc(id);
-      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const timestamp = new Date();
       
       const updateData = {
         ...data,

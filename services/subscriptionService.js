@@ -1,6 +1,7 @@
 // services/subscriptionService.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
+const PaystackService = require('./paystackService');
 
 class SubscriptionService {
   static subscriptionPlans = {
@@ -59,7 +60,7 @@ class SubscriptionService {
           'subscription.active': false,
           'subscription.autoDeactivated': true,
           'subscription.deactivatedAt': now,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: new Date()
         });
         
         return { active: false, reason: 'Expired' };
@@ -118,8 +119,8 @@ class SubscriptionService {
           planName: planDetails.name,
           adminName: admin.name || 'Admin'
         },
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       // Save to payments collection
@@ -146,7 +147,7 @@ class SubscriptionService {
       await paymentRef.update({
         reference: paystackResponse.data.reference,
         paystackData: paystackResponse.data,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: new Date()
       });
 
       return {
@@ -193,7 +194,7 @@ class SubscriptionService {
       if (verification.data.status !== 'success') {
         await paymentDoc.ref.update({
           status: 'failed',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: new Date()
         });
         throw new Error('Payment verification failed');
       }
@@ -216,7 +217,7 @@ class SubscriptionService {
       // Update user with subscription
       await db.collection('users').doc(payment.userId).update({
         subscription: subscriptionData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: new Date()
       });
 
       console.log('User subscription updated for user:', payment.userId);
@@ -226,7 +227,7 @@ class SubscriptionService {
         status: 'completed',
         subscriptionData,
         verificationData: verification.data,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: new Date()
       });
 
       return {
@@ -252,8 +253,8 @@ class SubscriptionService {
         return {
           id: doc.id,
           ...data,
-          createdAt: data.createdAt?.toDate?.() || data.createdAt,
-          updatedAt: data.updatedAt?.toDate?.() || data.updatedAt
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt
         };
       });
     } catch (error) {
@@ -315,7 +316,7 @@ class SubscriptionService {
       
       await db.collection('users').doc(adminId).update({
         subscription: subscriptionData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: new Date()
       });
       
       return subscriptionData;
@@ -347,7 +348,7 @@ class SubscriptionService {
                 'subscription.active': false,
                 'subscription.autoDeactivated': true,
                 'subscription.deactivatedAt': now,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: new Date()
               })
             );
           }
