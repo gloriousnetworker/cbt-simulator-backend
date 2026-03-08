@@ -1,64 +1,115 @@
 // models/Payment.js
 const { db } = require('../config/firebase');
-const { v4: uuidv4 } = require('uuid');
+const admin = require('firebase-admin');
 
 class Payment {
   static collection = 'payments';
 
   static async create(paymentData) {
-    const id = uuidv4();
-    const payment = {
-      id,
-      ...paymentData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    await db.collection(this.collection).doc(id).set(payment);
-    return payment;
+    try {
+      const paymentRef = db.collection(this.collection).doc();
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      
+      const payment = {
+        id: paymentRef.id,
+        ...paymentData,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      
+      await paymentRef.set(payment);
+      return payment;
+    } catch (error) {
+      console.error('Create payment error:', error);
+      throw error;
+    }
   }
 
   static async findById(id) {
-    const doc = await db.collection(this.collection).doc(id).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    try {
+      const doc = await db.collection(this.collection).doc(id).get();
+      if (!doc.exists) return null;
+      
+      return {
+        id: doc.id,
+        ...doc.data()
+      };
+    } catch (error) {
+      console.error('Find payment by ID error:', error);
+      throw error;
+    }
   }
 
   static async findByReference(reference) {
-    const snapshot = await db
-      .collection(this.collection)
-      .where('reference', '==', reference)
-      .limit(1)
-      .get();
-    
-    if (snapshot.empty) return null;
-    const doc = snapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
+    try {
+      const snapshot = await db.collection(this.collection)
+        .where('reference', '==', reference)
+        .limit(1)
+        .get();
+      
+      if (snapshot.empty) return null;
+      
+      const doc = snapshot.docs[0];
+      return {
+        id: doc.id,
+        ...doc.data()
+      };
+    } catch (error) {
+      console.error('Find payment by reference error:', error);
+      throw error;
+    }
   }
 
   static async findByUser(userId) {
-    const snapshot = await db
-      .collection(this.collection)
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .get();
-    
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      const snapshot = await db.collection(this.collection)
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Find payments by user error:', error);
+      throw error;
+    }
   }
 
   static async update(id, data) {
-    const updateData = {
-      ...data,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    await db.collection(this.collection).doc(id).update(updateData);
-    return this.findById(id);
+    try {
+      const paymentRef = db.collection(this.collection).doc(id);
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      
+      const updateData = {
+        ...data,
+        updatedAt: timestamp
+      };
+      
+      await paymentRef.update(updateData);
+      
+      const updated = await paymentRef.get();
+      return {
+        id: updated.id,
+        ...updated.data()
+      };
+    } catch (error) {
+      console.error('Update payment error:', error);
+      throw error;
+    }
   }
 
   static async updateByReference(reference, data) {
-    const payment = await this.findByReference(reference);
-    if (!payment) return null;
-    return this.update(payment.id, data);
+    try {
+      const payment = await this.findByReference(reference);
+      if (!payment) return null;
+      
+      return this.update(payment.id, data);
+    } catch (error) {
+      console.error('Update payment by reference error:', error);
+      throw error;
+    }
   }
 }
 

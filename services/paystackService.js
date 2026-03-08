@@ -7,16 +7,21 @@ class PaystackService {
     this.baseUrl = 'https://api.paystack.co';
   }
 
-  // Initialize transaction
   async initializeTransaction(email, amount, metadata = {}) {
     try {
+      console.log('Initializing Paystack transaction for:', { email, amount });
+
+      if (!email) {
+        throw new Error('Email is required for Paystack transaction');
+      }
+
       const response = await axios.post(
         `${this.baseUrl}/transaction/initialize`,
         {
           email,
-          amount: amount * 100, // Paystack amounts are in kobo (multiply by 100)
+          amount: amount * 100, // Paystack uses kobo (multiply by 100)
           metadata,
-          callback_url: `${process.env.FRONTEND_URL}/dashboard/subscription/verify`,
+          callback_url: metadata.callback_url || `${process.env.FRONTEND_URL}/dashboard/subscription/verify`,
         },
         {
           headers: {
@@ -26,6 +31,7 @@ class PaystackService {
         }
       );
 
+      console.log('Paystack initialize response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Paystack initialization error:', error.response?.data || error.message);
@@ -33,9 +39,10 @@ class PaystackService {
     }
   }
 
-  // Verify transaction
   async verifyTransaction(reference) {
     try {
+      console.log('Verifying Paystack transaction:', reference);
+
       const response = await axios.get(
         `${this.baseUrl}/transaction/verify/${reference}`,
         {
@@ -45,6 +52,7 @@ class PaystackService {
         }
       );
 
+      console.log('Paystack verify response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Paystack verification error:', error.response?.data || error.message);
@@ -52,7 +60,6 @@ class PaystackService {
     }
   }
 
-  // List banks (for future use)
   async listBanks() {
     try {
       const response = await axios.get(
@@ -71,60 +78,6 @@ class PaystackService {
     }
   }
 
-  // Create transfer recipient (for future use)
-  async createTransferRecipient(name, accountNumber, bankCode) {
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/transferrecipient`,
-        {
-          type: 'nuban',
-          name,
-          account_number: accountNumber,
-          bank_code: bankCode,
-          currency: 'NGN',
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      return response.data;
-    } catch (error) {
-      console.error('Create recipient error:', error.response?.data || error.message);
-      throw new Error('Failed to create transfer recipient');
-    }
-  }
-
-  // Initiate transfer (for future use - refunds)
-  async initiateTransfer(amount, recipientCode, reason) {
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/transfer`,
-        {
-          source: 'balance',
-          amount: amount * 100,
-          recipient: recipientCode,
-          reason,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      return response.data;
-    } catch (error) {
-      console.error('Transfer error:', error.response?.data || error.message);
-      throw new Error('Failed to initiate transfer');
-    }
-  }
-
-  // Get payment methods (for UI)
   getPaymentMethods() {
     return [
       {
