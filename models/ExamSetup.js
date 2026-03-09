@@ -128,8 +128,28 @@ class ExamSetup {
     return results.sort((a, b) => b.score - a.score);
   }
 
+  static async getQuestionsForExam(examId) {
+    const exam = await this.findById(examId);
+    if (!exam) return null;
+    
+    const Question = require('./Question');
+    const allQuestions = [];
+    
+    for (const subjectConfig of exam.subjects) {
+      for (const questionId of subjectConfig.questions) {
+        const question = await Question.findById(questionId);
+        if (question) {
+          allQuestions.push(question);
+        }
+      }
+    }
+    
+    return allQuestions;
+  }
+
   static async getActiveExamsForStudent(studentId, schoolId, studentClass) {
     const now = new Date();
+    const Question = require('./Question');
     
     const snapshot = await db.collection(this.collection)
       .where('schoolId', '==', schoolId)
@@ -155,16 +175,44 @@ class ExamSetup {
           const studentExamSnapshot = await studentExamRef.get();
           
           if (studentExamSnapshot.empty) {
+            // Get questions for this exam
+            const questions = [];
+            for (const subjectConfig of exam.subjects) {
+              for (const questionId of subjectConfig.questions) {
+                const question = await Question.findById(questionId);
+                if (question) {
+                  // Remove correctAnswer from question for client
+                  const { correctAnswer, ...questionWithoutAnswer } = question;
+                  questions.push({
+                    ...questionWithoutAnswer,
+                    subjectName: subjectConfig.subjectName
+                  });
+                }
+              }
+            }
+            
+            // Shuffle questions if enabled
+            if (exam.shuffleQuestions) {
+              questions.sort(() => 0.5 - Math.random());
+            }
+            
             activeExams.push({
               id: exam.id,
               title: exam.title,
-              subject: exam.subject,
+              description: exam.description,
+              class: exam.class,
               subjects: exam.subjects,
               duration: exam.duration,
               totalMarks: exam.totalMarks,
+              passMark: exam.passMark,
               instructions: exam.instructions,
+              questions: questions,
+              questionCount: questions.length,
               startDateTime: exam.startDateTime,
-              endDateTime: exam.endDateTime
+              endDateTime: exam.endDateTime,
+              shuffleQuestions: exam.shuffleQuestions,
+              showResults: exam.showResults,
+              allowRetake: exam.allowRetake
             });
           }
         }

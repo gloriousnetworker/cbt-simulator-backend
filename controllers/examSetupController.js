@@ -589,17 +589,28 @@ const submitStudentExam = async (req, res) => {
 
 const getAvailableExamsForStudent = async (req, res) => {
   try {
+    console.log('Getting available exams for student:', req.student.id);
+    
     const student = await Student.findById(req.student.id);
     
     if (!student) {
+      console.log('Student not found');
       return res.status(404).json({ message: 'Student not found' });
     }
+    
+    console.log('Student details:', {
+      id: student.id,
+      schoolId: student.schoolId,
+      class: student.class
+    });
     
     const activeExams = await ExamSetup.getActiveExamsForStudent(
       req.student.id,
       student.schoolId,
       student.class
     );
+    
+    console.log(`Found ${activeExams.length} active exams for student`);
     
     res.json({ exams: activeExams });
   } catch (error) {
