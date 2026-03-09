@@ -95,6 +95,7 @@ const createExamSetup = async (req, res) => {
       calculatedTotalMarks += subjectMarks;
     }
     
+    // Always use calculated total marks, ignore user-provided totalMarks
     const examData = removeUndefined({
       title,
       description,
@@ -103,7 +104,7 @@ const createExamSetup = async (req, res) => {
       class: studentClass,
       subjects: examSubjects,
       duration: duration || 120,
-      totalMarks: totalMarks || calculatedTotalMarks,
+      totalMarks: calculatedTotalMarks, // Force use calculated value
       passMark: passMark || 50,
       startDateTime,
       endDateTime,
@@ -121,7 +122,10 @@ const createExamSetup = async (req, res) => {
     
     res.status(201).json({
       message: 'Exam setup created successfully',
-      exam
+      exam: {
+        ...exam,
+        totalMarks: calculatedTotalMarks // Return the actual total marks
+      }
     });
   } catch (error) {
     console.error('Create exam setup error:', error);
@@ -208,6 +212,35 @@ const updateExamSetup = async (req, res) => {
       
       updateData.startDateTime = startDateTime;
       updateData.endDateTime = endDateTime;
+    }
+    
+    // If subjects are being updated, recalculate totalMarks
+    if (updateData.subjects) {
+      let recalculatedTotalMarks = 0;
+      for (const subjectConfig of updateData.subjects) {
+        const subject = await Subject.findById(subjectConfig.subjectId);
+        if (!subject) {
+          return res.status(404).json({ message: `Subject not found: ${subjectConfig.subjectId}` });
+        }
+        
+        const questions = await Question.findAll({
+          subjectId: subjectConfig.subjectId,
+          class: updateData.class || exam.class,
+          mode: 'exam'
+        });
+        
+        let selectedQuestions = [];
+        if (subjectConfig.questionCount && subjectConfig.questionCount > 0) {
+          selectedQuestions = questions.slice(0, Math.min(subjectConfig.questionCount, questions.length));
+        } else {
+          selectedQuestions = questions;
+        }
+        
+        const subjectMarks = selectedQuestions.reduce((sum, q) => sum + (q.marks || 1), 0);
+        recalculatedTotalMarks += subjectMarks;
+        subjectConfig.totalMarks = subjectMarks;
+      }
+      updateData.totalMarks = recalculatedTotalMarks;
     }
     
     const updatedExam = await ExamSetup.update(examId, updateData);
@@ -389,10 +422,9 @@ const assignStudentsToExam = async (req, res) => {
   }
 };
 
-// In examSetupController.js - update the startStudentExam method
 const startStudentExam = async (req, res) => {
   try {
-    const { examSetupId } = req.body; // Get from body, not params
+    const { examSetupId } = req.body;
     const studentId = req.student.id;
     
     console.log('Starting exam with examSetupId:', examSetupId);
@@ -489,16 +521,15 @@ const startStudentExam = async (req, res) => {
       subjectName: q.subjectName
     }));
     
-    // Create the exam record
     const exam = await Exam.create({
       studentId: studentId,
       schoolId: req.student.schoolId,
       examSetupId: examSetupId,
-      subject: examSetup.subjects.map(s => s.subjectName).join(', '),
+      title: examSetup.title,
       subjects: examSetup.subjects,
       duration: examSetup.duration,
       questionCount: examQuestions.length,
-      questions: allQuestions, // Store full questions with correct answers
+      questions: allQuestions,
       startTime: now,
       status: 'in_progress',
       answers: {},

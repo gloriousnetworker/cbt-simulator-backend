@@ -25,8 +25,19 @@ const submitExam = async (req, res) => {
     let correctAnswers = 0;
     let wrongAnswers = 0;
     
-    console.log('Calculating score for', questions.length, 'questions');
-    console.log('Student answers:', exam.answers);
+    // Calculate actual total marks from subjects if available
+    let actualTotalMarks = exam.totalMarks;
+    if (exam.subjects && exam.subjects.length > 0) {
+      actualTotalMarks = exam.subjects.reduce((sum, subject) => 
+        sum + (subject.totalMarks || 0), 0
+      );
+    }
+    
+    console.log('Total marks calculation:', {
+      examTotalMarks: exam.totalMarks,
+      subjectsTotalMarks: actualTotalMarks,
+      using: actualTotalMarks
+    });
     
     questions.forEach(question => {
       const userAnswer = exam.answers[question.id];
@@ -47,11 +58,11 @@ const submitExam = async (req, res) => {
       }
     });
     
-    const percentage = ((totalScore / exam.totalMarks) * 100).toFixed(1);
+    const percentage = ((totalScore / actualTotalMarks) * 100).toFixed(1);
     
     console.log('Score calculation:', {
       totalScore,
-      totalMarks: exam.totalMarks,
+      actualTotalMarks,
       percentage,
       correctAnswers,
       wrongAnswers,
@@ -74,7 +85,7 @@ const submitExam = async (req, res) => {
         await ExamSetup.addResult(exam.examSetupId, req.student.id, {
           examId: examId,
           score: totalScore,
-          totalMarks: exam.totalMarks,
+          totalMarks: actualTotalMarks,
           percentage: parseFloat(percentage),
           correctAnswers,
           wrongAnswers,
@@ -92,7 +103,7 @@ const submitExam = async (req, res) => {
         examSetupId: updatedExam.examSetupId,
         subjects: updatedExam.subjects,
         score: updatedExam.score,
-        totalMarks: updatedExam.totalMarks,
+        totalMarks: actualTotalMarks,
         percentage: updatedExam.percentage,
         correctAnswers,
         wrongAnswers,
@@ -173,6 +184,14 @@ const recordTabSwitch = async (req, res) => {
       let correctAnswers = 0;
       let wrongAnswers = 0;
       
+      // Calculate actual total marks from subjects
+      let actualTotalMarks = exam.totalMarks;
+      if (exam.subjects && exam.subjects.length > 0) {
+        actualTotalMarks = exam.subjects.reduce((sum, subject) => 
+          sum + (subject.totalMarks || 0), 0
+        );
+      }
+      
       questions.forEach(question => {
         const userAnswer = exam.answers[question.id];
         const isCorrect = userAnswer !== undefined && userAnswer === question.correctAnswer;
@@ -185,7 +204,7 @@ const recordTabSwitch = async (req, res) => {
         }
       });
       
-      const percentage = exam.totalMarks ? ((totalScore / exam.totalMarks) * 100).toFixed(1) : 0;
+      const percentage = actualTotalMarks ? ((totalScore / actualTotalMarks) * 100).toFixed(1) : 0;
       
       await Exam.update(examId, {
         tabSwitches,
@@ -206,7 +225,7 @@ const recordTabSwitch = async (req, res) => {
           await ExamSetup.addResult(exam.examSetupId, req.student.id, {
             examId: examId,
             score: totalScore,
-            totalMarks: exam.totalMarks,
+            totalMarks: actualTotalMarks,
             percentage: parseFloat(percentage),
             correctAnswers,
             wrongAnswers,
@@ -306,13 +325,21 @@ const getResults = async (req, res) => {
         exam.answers[q.id] && exam.answers[q.id] === q.correctAnswer
       ).length;
       
+      // Calculate actual total marks from subjects
+      let actualTotalMarks = exam.totalMarks;
+      if (exam.subjects && exam.subjects.length > 0) {
+        actualTotalMarks = exam.subjects.reduce((sum, subject) => 
+          sum + (subject.totalMarks || 0), 0
+        );
+      }
+      
       return {
         id: exam.id,
         examSetupId: exam.examSetupId,
         title: exam.title,
         subjects: exam.subjects,
         score: exam.score || 0,
-        totalMarks: exam.totalMarks || 0,
+        totalMarks: actualTotalMarks,
         percentage: exam.percentage || 0,
         correctAnswers,
         wrongAnswers: answeredQuestions - correctAnswers,
