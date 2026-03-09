@@ -3,9 +3,6 @@ const Exam = require('../models/Exam');
 const Student = require('../models/Student');
 const ExamSetup = require('../models/ExamSetup');
 
-// Note: startExam is now handled by examSetupController.startStudentExam
-// This controller handles the other exam operations
-
 const submitExam = async (req, res) => {
   try {
     const { examId } = req.params;
@@ -25,15 +22,41 @@ const submitExam = async (req, res) => {
     
     const questions = exam.questions || [];
     let totalScore = 0;
+    let correctAnswers = 0;
+    let wrongAnswers = 0;
+    
+    console.log('Calculating score for', questions.length, 'questions');
+    console.log('Student answers:', exam.answers);
     
     questions.forEach(question => {
       const userAnswer = exam.answers[question.id];
-      if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+      const isCorrect = userAnswer !== undefined && userAnswer === question.correctAnswer;
+      
+      console.log(`Question ${question.id}:`, {
+        userAnswer,
+        correctAnswer: question.correctAnswer,
+        isCorrect,
+        marks: question.marks || 1
+      });
+      
+      if (isCorrect) {
         totalScore += question.marks || 1;
+        correctAnswers++;
+      } else if (userAnswer !== undefined) {
+        wrongAnswers++;
       }
     });
     
     const percentage = ((totalScore / exam.totalMarks) * 100).toFixed(1);
+    
+    console.log('Score calculation:', {
+      totalScore,
+      totalMarks: exam.totalMarks,
+      percentage,
+      correctAnswers,
+      wrongAnswers,
+      unanswered: questions.length - (correctAnswers + wrongAnswers)
+    });
     
     const updatedExam = await Exam.update(examId, {
       score: totalScore,
@@ -53,6 +76,9 @@ const submitExam = async (req, res) => {
           score: totalScore,
           totalMarks: exam.totalMarks,
           percentage: parseFloat(percentage),
+          correctAnswers,
+          wrongAnswers,
+          totalQuestions: questions.length,
           submittedAt: new Date(),
           submitted: true
         });
@@ -68,6 +94,9 @@ const submitExam = async (req, res) => {
         score: updatedExam.score,
         totalMarks: updatedExam.totalMarks,
         percentage: updatedExam.percentage,
+        correctAnswers,
+        wrongAnswers,
+        totalQuestions: questions.length,
         endTime: updatedExam.endTime
       }
     });
@@ -82,7 +111,6 @@ const getExamById = async (req, res) => {
     const { examId } = req.params;
     
     console.log('Getting exam by ID:', examId);
-    console.log('Student ID:', req.student.id);
     
     const exam = await Exam.findById(examId);
     
@@ -91,14 +119,16 @@ const getExamById = async (req, res) => {
     }
     
     // Remove correctAnswer from questions for client
+    const questionsForClient = exam.questions.map(({ correctAnswer, ...rest }) => rest);
+    
     const examForClient = {
       id: exam.id,
       examSetupId: exam.examSetupId,
+      title: exam.title,
       subjects: exam.subjects,
-      subject: exam.subject,
       duration: exam.duration,
       questionCount: exam.questionCount,
-      questions: exam.questions.map(({ correctAnswer, ...rest }) => rest),
+      questions: questionsForClient,
       answers: exam.answers || {},
       startTime: exam.startTime,
       status: exam.status,
@@ -107,6 +137,7 @@ const getExamById = async (req, res) => {
       totalMarks: exam.totalMarks,
       percentage: exam.percentage,
       tabSwitches: exam.tabSwitches,
+      instructions: exam.instructions,
       createdAt: exam.createdAt,
       updatedAt: exam.updatedAt
     };
@@ -139,11 +170,18 @@ const recordTabSwitch = async (req, res) => {
       
       const questions = exam.questions || [];
       let totalScore = 0;
+      let correctAnswers = 0;
+      let wrongAnswers = 0;
       
       questions.forEach(question => {
         const userAnswer = exam.answers[question.id];
-        if (userAnswer !== undefined && userAnswer === question.correctAnswer) {
+        const isCorrect = userAnswer !== undefined && userAnswer === question.correctAnswer;
+        
+        if (isCorrect) {
           totalScore += question.marks || 1;
+          correctAnswers++;
+        } else if (userAnswer !== undefined) {
+          wrongAnswers++;
         }
       });
       
@@ -170,6 +208,9 @@ const recordTabSwitch = async (req, res) => {
             score: totalScore,
             totalMarks: exam.totalMarks,
             percentage: parseFloat(percentage),
+            correctAnswers,
+            wrongAnswers,
+            totalQuestions: questions.length,
             submittedAt: new Date(),
             submitted: true,
             autoSubmitted: true
@@ -196,7 +237,20 @@ const saveAnswer = async (req, res) => {
     const { examId } = req.params;
     const { questionId, answer } = req.body;
     
-    console.log('Saving answer for exam:', examId, 'question:', questionId, 'answer:', answer);
+    console.log('Saving answer:', {
+      examId,
+      questionId,
+      answer,
+      timestamp: new Date().toISOString()
+    });
+    
+    if (!questionId) {
+      return res.status(400).json({ message: 'questionId is required' });
+    }
+    
+    if (!answer) {
+      return res.status(400).json({ message: 'answer is required' });
+    }
     
     const exam = await Exam.findById(examId);
     
@@ -208,9 +262,30 @@ const saveAnswer = async (req, res) => {
       return res.status(400).json({ message: 'Exam already submitted' });
     }
     
+    // Verify the question exists in this exam
+    const questionExists = exam.questions.some(q => q.id === questionId);
+    if (!questionExists) {
+      return res.status(400).json({ message: 'Question not found in this exam' });
+    }
+    
     await Exam.saveAnswer(examId, questionId, answer);
     
-    res.json({ message: 'Answer saved' });
+    // Get the updated exam to verify the answer was saved
+    const updatedExam = await Exam.findById(examId);
+    const savedAnswer = updatedExam.answers[questionId];
+    
+    console.log('Answer saved verification:', {
+      questionId,
+      sentAnswer: answer,
+      savedAnswer,
+      match: savedAnswer === answer
+    });
+    
+    res.json({ 
+      message: 'Answer saved',
+      saved: true,
+      answer: savedAnswer
+    });
   } catch (error) {
     console.error('Save answer error:', error);
     res.status(500).json({ message: error.message });
@@ -224,19 +299,25 @@ const getResults = async (req, res) => {
     const exams = await Exam.findByStudent(req.student.id, 'completed');
     
     const results = exams.map(exam => {
-      // Get exam setup details if available
-      const subjectsList = exam.subjects || [];
-      const subjectNames = subjectsList.map(s => s.subjectName).join(', ');
+      const questions = exam.questions || [];
+      const totalQuestions = questions.length;
+      const answeredQuestions = Object.keys(exam.answers || {}).length;
+      const correctAnswers = questions.filter(q => 
+        exam.answers[q.id] && exam.answers[q.id] === q.correctAnswer
+      ).length;
       
       return {
         id: exam.id,
         examSetupId: exam.examSetupId,
         title: exam.title,
-        subjects: subjectsList,
-        subject: exam.subject || subjectNames,
+        subjects: exam.subjects,
         score: exam.score || 0,
         totalMarks: exam.totalMarks || 0,
         percentage: exam.percentage || 0,
+        correctAnswers,
+        wrongAnswers: answeredQuestions - correctAnswers,
+        unanswered: totalQuestions - answeredQuestions,
+        totalQuestions,
         date: exam.endTime || exam.createdAt,
         duration: exam.duration,
         status: exam.status
@@ -254,81 +335,75 @@ const getPerformance = async (req, res) => {
   try {
     console.log('Getting performance for student:', req.student.id);
     
-    const performance = await Exam.getResults(req.student.id);
+    const exams = await Exam.findByStudent(req.student.id, 'completed');
     
-    // Enhance performance with subject details
-    const enhancedPerformance = {
-      ...performance,
+    const performance = {
+      totalExams: exams.length,
+      averageScore: 0,
+      totalCorrect: 0,
+      totalWrong: 0,
+      totalQuestions: 0,
       subjects: {}
     };
     
-    // Get all completed exams
-    const exams = await Exam.findByStudent(req.student.id, 'completed');
-    
-    // Group by subject for detailed performance
-    exams.forEach(exam => {
-      if (exam.subjects && exam.subjects.length > 0) {
-        exam.subjects.forEach(subjectConfig => {
-          const subjectName = subjectConfig.subjectName;
-          if (!enhancedPerformance.subjects[subjectName]) {
-            enhancedPerformance.subjects[subjectName] = {
-              attempts: 0,
-              totalScore: 0,
-              averagePercentage: 0,
-              bestScore: 0,
-              lastAttempt: null
-            };
-          }
-          
-          // For now, we approximate per-subject score
-          // This can be enhanced if you store per-subject scores separately
-          const subjectScore = exam.score * (subjectConfig.totalMarks / exam.totalMarks);
-          
-          enhancedPerformance.subjects[subjectName].attempts++;
-          enhancedPerformance.subjects[subjectName].totalScore += subjectScore;
-          enhancedPerformance.subjects[subjectName].bestScore = Math.max(
-            enhancedPerformance.subjects[subjectName].bestScore,
-            subjectScore
-          );
-          enhancedPerformance.subjects[subjectName].lastAttempt = exam.endTime || exam.createdAt;
-        });
-      } else if (exam.subject) {
-        // Fallback for old exam format
-        if (!enhancedPerformance.subjects[exam.subject]) {
-          enhancedPerformance.subjects[exam.subject] = {
-            attempts: 0,
-            totalScore: 0,
-            averagePercentage: 0,
-            bestScore: 0,
-            lastAttempt: null
-          };
-        }
+    if (exams.length > 0) {
+      let totalPercentage = 0;
+      
+      exams.forEach(exam => {
+        const questions = exam.questions || [];
+        const answeredQuestions = Object.keys(exam.answers || {}).length;
+        const correctCount = questions.filter(q => 
+          exam.answers[q.id] && exam.answers[q.id] === q.correctAnswer
+        ).length;
         
-        enhancedPerformance.subjects[exam.subject].attempts++;
-        enhancedPerformance.subjects[exam.subject].totalScore += exam.score || 0;
-        enhancedPerformance.subjects[exam.subject].bestScore = Math.max(
-          enhancedPerformance.subjects[exam.subject].bestScore,
-          exam.score || 0
-        );
-        enhancedPerformance.subjects[exam.subject].lastAttempt = exam.endTime || exam.createdAt;
-      }
-    });
+        totalPercentage += exam.percentage || 0;
+        performance.totalCorrect += correctCount;
+        performance.totalWrong += answeredQuestions - correctCount;
+        performance.totalQuestions += questions.length;
+        
+        // Group by subjects
+        if (exam.subjects && exam.subjects.length > 0) {
+          exam.subjects.forEach(subjectConfig => {
+            const subjectName = subjectConfig.subjectName;
+            if (!performance.subjects[subjectName]) {
+              performance.subjects[subjectName] = {
+                attempts: 0,
+                totalScore: 0,
+                totalMarks: 0,
+                averagePercentage: 0,
+                bestScore: 0
+              };
+            }
+            
+            performance.subjects[subjectName].attempts++;
+            performance.subjects[subjectName].totalScore += exam.score || 0;
+            performance.subjects[subjectName].totalMarks += exam.totalMarks || 0;
+            performance.subjects[subjectName].bestScore = Math.max(
+              performance.subjects[subjectName].bestScore,
+              exam.score || 0
+            );
+          });
+        }
+      });
+      
+      performance.averageScore = (totalPercentage / exams.length).toFixed(1);
+      
+      // Calculate average percentages for subjects
+      Object.keys(performance.subjects).forEach(subject => {
+        const subj = performance.subjects[subject];
+        const avgPercentage = (subj.totalScore / subj.totalMarks) * 100;
+        subj.averagePercentage = avgPercentage.toFixed(1);
+      });
+    }
     
-    // Calculate average percentages for each subject
-    Object.keys(enhancedPerformance.subjects).forEach(subject => {
-      const subj = enhancedPerformance.subjects[subject];
-      subj.averagePercentage = (subj.totalScore / subj.attempts).toFixed(1);
-    });
-    
-    res.json({ performance: enhancedPerformance });
+    res.json({ performance });
   } catch (error) {
     console.error('Get performance error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// Note: startExam is now handled by examSetupController.startStudentExam
-// This function is kept for backward compatibility but will redirect
+// Legacy method - kept for backward compatibility
 const startExam = async (req, res) => {
   try {
     const { subjectId } = req.body;
@@ -336,7 +411,6 @@ const startExam = async (req, res) => {
     console.log('Legacy startExam called with subjectId:', subjectId);
     console.log('This method is deprecated. Please use examSetupController.startStudentExam instead.');
     
-    // For backward compatibility, try to find an active exam setup for this subject
     const student = await Student.findById(req.student.id);
     
     if (!student) {
@@ -374,7 +448,7 @@ const startExam = async (req, res) => {
 };
 
 module.exports = {
-  startExam, // Kept for backward compatibility
+  startExam,
   submitExam,
   getExamById,
   recordTabSwitch,
