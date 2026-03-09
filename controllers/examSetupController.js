@@ -389,12 +389,20 @@ const assignStudentsToExam = async (req, res) => {
   }
 };
 
+// In examSetupController.js - update the startStudentExam method
 const startStudentExam = async (req, res) => {
   try {
-    const { examId } = req.params;
+    const { examSetupId } = req.body; // Get from body, not params
     const studentId = req.student.id;
     
-    const examSetup = await ExamSetup.findById(examId);
+    console.log('Starting exam with examSetupId:', examSetupId);
+    console.log('Student ID:', studentId);
+    
+    if (!examSetupId) {
+      return res.status(400).json({ message: 'examSetupId is required in request body' });
+    }
+    
+    const examSetup = await ExamSetup.findById(examSetupId);
     
     if (!examSetup) {
       return res.status(404).json({ message: 'Exam not found' });
@@ -421,7 +429,7 @@ const startStudentExam = async (req, res) => {
     }
     
     const existingExam = await Exam.findByStudent(studentId);
-    const inProgressExam = existingExam.find(e => e.examSetupId === examId && e.status === 'in_progress');
+    const inProgressExam = existingExam.find(e => e.examSetupId === examSetupId && e.status === 'in_progress');
     
     if (inProgressExam) {
       const examQuestions = inProgressExam.questions.map(({ correctAnswer, ...rest }) => rest);
@@ -430,7 +438,7 @@ const startStudentExam = async (req, res) => {
         message: 'Resuming existing exam',
         exam: {
           id: inProgressExam.id,
-          examSetupId: examId,
+          examSetupId: examSetupId,
           title: examSetup.title,
           subjects: examSetup.subjects,
           duration: examSetup.duration,
@@ -438,12 +446,13 @@ const startStudentExam = async (req, res) => {
           answers: inProgressExam.answers || {},
           startTime: inProgressExam.startTime,
           status: inProgressExam.status,
-          timeSpent: inProgressExam.timeSpent || 0
+          timeSpent: inProgressExam.timeSpent || 0,
+          instructions: examSetup.instructions
         }
       });
     }
     
-    const completedExam = existingExam.find(e => e.examSetupId === examId && e.status === 'completed');
+    const completedExam = existingExam.find(e => e.examSetupId === examSetupId && e.status === 'completed');
     if (completedExam && !examSetup.allowRetake) {
       return res.status(403).json({ message: 'You have already taken this exam and retakes are not allowed' });
     }
@@ -480,15 +489,16 @@ const startStudentExam = async (req, res) => {
       subjectName: q.subjectName
     }));
     
+    // Create the exam record
     const exam = await Exam.create({
       studentId: studentId,
       schoolId: req.student.schoolId,
-      examSetupId: examId,
+      examSetupId: examSetupId,
       subject: examSetup.subjects.map(s => s.subjectName).join(', '),
       subjects: examSetup.subjects,
       duration: examSetup.duration,
       questionCount: examQuestions.length,
-      questions: allQuestions,
+      questions: allQuestions, // Store full questions with correct answers
       startTime: now,
       status: 'in_progress',
       answers: {},
@@ -499,18 +509,16 @@ const startStudentExam = async (req, res) => {
     
     await Student.setCurrentExam(studentId, exam.id);
     
-    const questionsForClient = examQuestions.map(q => q);
-    
     res.status(201).json({
       message: 'Exam started',
       exam: {
         id: exam.id,
-        examSetupId: examId,
+        examSetupId: examSetupId,
         title: examSetup.title,
         subjects: examSetup.subjects,
         duration: exam.duration,
         questionCount: exam.questionCount,
-        questions: questionsForClient,
+        questions: examQuestions,
         startTime: exam.startTime,
         status: exam.status,
         instructions: examSetup.instructions

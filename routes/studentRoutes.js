@@ -22,11 +22,11 @@ router.get('/subjects', studentController.getSubjects);
 router.get('/practice', studentController.getPracticeQuestions);
 router.get('/history', studentController.getExamHistory);
 
-// Exam setup routes (new)
+// Exam setup routes
 router.get('/available-exams', examSetupController.getAvailableExamsForStudent);
 
 // Exam routes
-router.post('/exams/start', examController.startExam);
+router.post('/exams/start', examSetupController.startStudentExam);
 router.post('/exams/:examId/submit', examController.submitExam);
 router.get('/exams/:examId', examController.getExamById);
 router.post('/exams/:examId/tab-switch', examController.recordTabSwitch);
