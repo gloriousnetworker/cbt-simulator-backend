@@ -1,3 +1,4 @@
+// controllers/adminController.js
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Student = require('../models/Student');
@@ -173,6 +174,15 @@ const createStudent = async (req, res) => {
         subscription: subscriptionStatus
       });
     }
+
+    // Check student limit based on subscription plan
+    const limitCheck = await SubscriptionService.checkStudentLimit(req.user.id);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({ 
+        message: limitCheck.reason,
+        subscription: subscriptionStatus
+      });
+    }
     
     const { firstName, lastName, middleName, nin, phone, dateOfBirth, class: studentClass } = req.body;
     
@@ -245,6 +255,11 @@ const createStudent = async (req, res) => {
         loginId: finalLoginId,
         email,
         password: '123456'
+      },
+      subscription: {
+        limit: limitCheck.limit,
+        current: limitCheck.current,
+        remaining: limitCheck.remaining
       }
     });
   } catch (error) {

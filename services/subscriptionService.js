@@ -5,21 +5,90 @@ const PaystackService = require('./paystackService');
 
 class SubscriptionService {
   static subscriptionPlans = {
-    monthly: { price: 15000, days: 30, name: 'Monthly' },
-    termly: { price: 42000, days: 120, name: 'Termly' },
-    yearly: { price: 120000, days: 365, name: 'Yearly' },
-    unlimited: { price: 500000, days: null, name: 'Unlimited' }
+    monthly: { 
+      price: 15000, 
+      days: 30, 
+      name: 'Monthly',
+      studentLimit: 50,
+      description: 'Perfect for small schools just getting started'
+    },
+    termly: { 
+      price: 42000, 
+      days: 120, 
+      name: 'Termly',
+      studentLimit: 200,
+      description: 'Ideal for growing schools with more students'
+    },
+    yearly: { 
+      price: 150000, 
+      days: 365, 
+      name: 'Yearly',
+      studentLimit: 500,
+      description: 'Best value for established schools'
+    },
+    unlimited: { 
+      price: 250000, 
+      days: 365, 
+      name: 'Unlimited',
+      studentLimit: null,
+      description: 'Unlimited students for one full year'
+    }
   };
 
   static calculateExpiryDate(plan) {
-    if (plan === 'unlimited') return null;
-    
     const days = this.subscriptionPlans[plan]?.days;
     if (!days) return null;
     
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + days);
     return expiryDate;
+  }
+
+  static async checkStudentLimit(adminId) {
+    try {
+      const adminDoc = await db.collection('users').doc(adminId).get();
+      
+      if (!adminDoc.exists) return { allowed: false, reason: 'Admin not found' };
+      
+      const admin = adminDoc.data();
+      
+      if (!admin.subscription || !admin.subscription.active) {
+        return { allowed: false, reason: 'No active subscription' };
+      }
+      
+      const plan = admin.subscription.plan;
+      const studentLimit = this.subscriptionPlans[plan]?.studentLimit;
+      
+      // No limit for plans with null studentLimit (unlimited plan)
+      if (studentLimit === null) {
+        return { allowed: true, limit: null, current: 0 };
+      }
+      
+      const snapshot = await db.collection('students')
+        .where('schoolId', '==', admin.schoolId)
+        .get();
+      
+      const currentCount = snapshot.size;
+      
+      if (currentCount >= studentLimit) {
+        return { 
+          allowed: false, 
+          reason: `Student limit reached (${currentCount}/${studentLimit})`,
+          limit: studentLimit,
+          current: currentCount
+        };
+      }
+      
+      return { 
+        allowed: true, 
+        limit: studentLimit, 
+        current: currentCount,
+        remaining: studentLimit - currentCount
+      };
+    } catch (error) {
+      console.error('Check student limit error:', error);
+      throw error;
+    }
   }
 
   static async checkSubscriptionStatus(adminId) {
@@ -36,13 +105,10 @@ class SubscriptionService {
         return { active: false, reason: 'No active subscription' };
       }
       
-      if (admin.subscription.plan === 'unlimited') {
-        return { 
-          active: true, 
-          plan: 'unlimited',
-          daysLeft: null,
-          paymentReference: admin.subscription.paymentReference
-        };
+      const planDetails = this.subscriptionPlans[admin.subscription.plan];
+      
+      if (!planDetails) {
+        return { active: false, reason: 'Invalid subscription plan' };
       }
       
       if (!admin.subscription.expiryDate) {
@@ -68,11 +134,21 @@ class SubscriptionService {
       
       const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
       
+      // Get current student count
+      const studentSnapshot = await db.collection('students')
+        .where('schoolId', '==', admin.schoolId)
+        .get();
+      const studentCount = studentSnapshot.size;
+      
       return {
         active: true,
         plan: admin.subscription.plan,
+        planName: planDetails.name,
         expiryDate: expiry,
         daysLeft,
+        studentLimit: planDetails.studentLimit,
+        studentCount,
+        remainingStudents: planDetails.studentLimit ? planDetails.studentLimit - studentCount : null,
         paymentReference: admin.subscription.paymentReference
       };
     } catch (error) {
@@ -117,7 +193,8 @@ class SubscriptionService {
         status: 'pending',
         metadata: {
           planName: planDetails.name,
-          adminName: admin.name || 'Admin'
+          adminName: admin.name || 'Admin',
+          studentLimit: planDetails.studentLimit
         },
         createdAt: new Date(),
         updatedAt: new Date()
@@ -331,7 +408,6 @@ class SubscriptionService {
       const now = new Date();
       const snapshot = await db.collection('users')
         .where('role', '==', 'admin')
-        .where('subscription.plan', '!=', 'unlimited')
         .get();
       
       const updates = [];
