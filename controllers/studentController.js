@@ -1,7 +1,9 @@
+// controllers/studentController.js
 const bcrypt = require('bcryptjs');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
 const Exam = require('../models/Exam');
+const Question = require('../models/Question'); // Add this missing import
 const TokenService = require('../services/tokenService');
 const { db } = require('../config/firebase');
 
@@ -188,6 +190,12 @@ const getPracticeQuestions = async (req, res) => {
   try {
     const { subjectId, count = 20 } = req.query;
     
+    console.log('Practice questions request:', { subjectId, count });
+    
+    if (!subjectId) {
+      return res.status(400).json({ message: 'subjectId is required' });
+    }
+
     const student = await Student.findById(req.student.id);
     
     if (!student) {
@@ -200,17 +208,33 @@ const getPracticeQuestions = async (req, res) => {
       return res.status(404).json({ message: 'Subject not found' });
     }
     
+    // Check if student is enrolled in this subject
+    const subjectNames = student.subjects || [];
+    if (!subjectNames.includes(subject.name)) {
+      return res.status(403).json({ message: 'You are not enrolled in this subject' });
+    }
+    
     const questions = await Question.getRandomQuestions(
       subjectId, 
-      count, 
+      parseInt(count) || 20, 
       student.class,
       'practice'
     );
     
-    const questionsForClient = questions.map(({ correctAnswer, ...rest }) => rest);
+    console.log(`Found ${questions.length} practice questions`);
+    
+    const questionsForClient = questions.map(({ correctAnswer, explanation, ...rest }) => {
+      // Include explanation for practice mode
+      return {
+        ...rest,
+        explanation: explanation || 'No explanation provided'
+      };
+    });
     
     res.json({ 
       subject: subject.name,
+      subjectId: subject.id,
+      totalQuestions: questions.length,
       questions: questionsForClient 
     });
   } catch (error) {
@@ -223,7 +247,21 @@ const getExamHistory = async (req, res) => {
   try {
     const exams = await Exam.findByStudent(req.student.id, 'completed');
     
-    res.json({ exams });
+    const formattedExams = exams.map(exam => ({
+      id: exam.id,
+      examSetupId: exam.examSetupId,
+      subject: exam.subject,
+      subjects: exam.subjects,
+      score: exam.score || 0,
+      totalMarks: exam.totalMarks || 0,
+      percentage: exam.percentage || 0,
+      date: exam.endTime || exam.createdAt,
+      duration: exam.duration,
+      questionCount: exam.questionCount,
+      status: exam.status
+    }));
+    
+    res.json({ exams: formattedExams });
   } catch (error) {
     console.error('Get exam history error:', error);
     res.status(500).json({ message: error.message });
