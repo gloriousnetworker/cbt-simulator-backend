@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
 const Exam = require('../models/Exam');
-const Question = require('../models/Question'); // Add this missing import
+const Question = require('../models/Question');
 const TokenService = require('../services/tokenService');
 const { db } = require('../config/firebase');
 
@@ -223,13 +223,22 @@ const getPracticeQuestions = async (req, res) => {
     
     console.log(`Found ${questions.length} practice questions`);
     
-    const questionsForClient = questions.map(({ correctAnswer, explanation, ...rest }) => {
-      // Include explanation for practice mode
-      return {
-        ...rest,
-        explanation: explanation || 'No explanation provided'
-      };
-    });
+    // For practice mode, include correctAnswer and explanation to help students learn
+    const questionsForClient = questions.map(q => ({
+      id: q.id,
+      subjectId: q.subjectId,
+      subjectName: q.subjectName,
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer, // Include correct answer for practice mode
+      marks: q.marks || 1,
+      difficulty: q.difficulty,
+      topic: q.topic || 'General',
+      class: q.class,
+      examType: q.examType,
+      mode: q.mode,
+      explanation: q.explanation || 'No explanation provided'
+    }));
     
     res.json({ 
       subject: subject.name,
