@@ -1,3 +1,4 @@
+// models/Question.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -112,15 +113,8 @@ class Question {
     let query = db.collection(this.collection)
       .where('subjectId', '==', subjectId);
     
-    const filters = [];
     if (mode) {
-      filters.push({ field: 'mode', operator: '==', value: mode });
-    }
-    
-    const classFilter = [];
-    classFilter.push({ field: 'class', operator: '==', value: 'General' });
-    if (studentClass) {
-      classFilter.push({ field: 'class', operator: '==', value: studentClass });
+      query = query.where('mode', '==', mode);
     }
     
     const snapshot = await query.get();
@@ -129,13 +123,10 @@ class Question {
       ...doc.data()
     }));
     
+    // Filter questions that are either General class or match the student's class
     questions = questions.filter(q => 
       q.class === 'General' || q.class === studentClass
     );
-    
-    if (mode) {
-      questions = questions.filter(q => q.mode === mode);
-    }
     
     const shuffled = questions.sort(() => 0.5 - Math.random());
     return shuffled.slice(0, Math.min(count, shuffled.length));

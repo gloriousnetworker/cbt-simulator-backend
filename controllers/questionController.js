@@ -1,3 +1,4 @@
+// controllers/questionController.js
 const Question = require('../models/Question');
 const Subject = require('../models/Subject');
 
@@ -26,7 +27,7 @@ const createQuestion = async (req, res) => {
       mode
     } = req.body;
     
-    if (!subjectId || !question || !options || options.length !== 4 || correctAnswer === undefined) {
+    if (!subjectId || !question || !options || options.length !== 4 || !correctAnswer) {
       return res.status(400).json({ 
         message: 'Missing required fields: subjectId, question, options (4), and correctAnswer are required' 
       });
@@ -35,6 +36,13 @@ const createQuestion = async (req, res) => {
     if (!mode || !['exam', 'practice'].includes(mode)) {
       return res.status(400).json({ 
         message: 'Mode is required and must be either "exam" or "practice"' 
+      });
+    }
+
+    // Validate that correctAnswer exists in options
+    if (!options.includes(correctAnswer)) {
+      return res.status(400).json({ 
+        message: 'Correct answer must be one of the provided options' 
       });
     }
     
@@ -51,7 +59,7 @@ const createQuestion = async (req, res) => {
       options,
       correctAnswer,
       marks: marks || 1,
-      explanation,
+      explanation: explanation || '',
       difficulty: difficulty || 'medium',
       topic: topic || 'General',
       class: studentClass || 'General',
@@ -123,6 +131,21 @@ const updateQuestion = async (req, res) => {
     if (!question || question.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Question not found' });
     }
+
+    // If updating correctAnswer, validate it exists in options
+    if (req.body.correctAnswer && req.body.options) {
+      if (!req.body.options.includes(req.body.correctAnswer)) {
+        return res.status(400).json({ 
+          message: 'Correct answer must be one of the provided options' 
+        });
+      }
+    } else if (req.body.correctAnswer && !req.body.options) {
+      if (!question.options.includes(req.body.correctAnswer)) {
+        return res.status(400).json({ 
+          message: 'Correct answer must be one of the existing options' 
+        });
+      }
+    }
     
     const updateData = removeUndefined(req.body);
     const updatedQuestion = await Question.update(questionId, updateData);
@@ -181,13 +204,19 @@ const bulkImportQuestions = async (req, res) => {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       
-      if (!q.question || !q.options || q.options.length !== 4 || q.correctAnswer === undefined || !q.mode) {
+      if (!q.question || !q.options || q.options.length !== 4 || !q.correctAnswer || !q.mode) {
         errors.push({ index: i, message: 'Missing required fields' });
         continue;
       }
       
       if (!['exam', 'practice'].includes(q.mode)) {
         errors.push({ index: i, message: 'Mode must be either "exam" or "practice"' });
+        continue;
+      }
+
+      // Validate correctAnswer exists in options
+      if (!q.options.includes(q.correctAnswer)) {
+        errors.push({ index: i, message: 'Correct answer must be one of the options' });
         continue;
       }
       
