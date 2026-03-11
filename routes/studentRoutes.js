@@ -4,6 +4,7 @@ const router = express.Router();
 const studentController = require('../controllers/studentController');
 const examController = require('../controllers/examController');
 const examSetupController = require('../controllers/examSetupController');
+const practiceController = require('../controllers/practiceController');
 const { authenticateStudent } = require('../middleware/studentAuthMiddleware');
 
 // Public route
@@ -21,6 +22,12 @@ router.post('/change-password', studentController.changePassword);
 router.get('/subjects', studentController.getSubjects);
 router.get('/practice', studentController.getPracticeQuestions);
 router.get('/history', studentController.getExamHistory);
+
+// Practice result routes
+router.post('/practice/save', practiceController.savePracticeResult);
+router.get('/practice/history', practiceController.getPracticeHistory);
+router.get('/practice/stats', practiceController.getPracticeStats);
+router.delete('/practice/:practiceId', practiceController.deletePracticeRecord);
 
 // Exam setup routes
 router.get('/available-exams', examSetupController.getAvailableExamsForStudent);
