@@ -24,6 +24,20 @@ class Practice {
     return practice;
   }
 
+  static async findById(id) {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    
+    const doc = await db.collection(this.collection).doc(id).get();
+    if (!doc.exists) return null;
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  }
+
   static async findByStudent(studentId, limit = 50) {
     if (!db) {
       throw new Error('Database not initialized');

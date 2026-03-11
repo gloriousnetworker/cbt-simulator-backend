@@ -109,9 +109,15 @@ const deletePracticeRecord = async (req, res) => {
   try {
     const { practiceId } = req.params;
     
+    // First check if the practice exists and belongs to this student
     const practice = await Practice.findById(practiceId);
-    if (!practice || practice.studentId !== req.student.id) {
+    
+    if (!practice) {
       return res.status(404).json({ message: 'Practice record not found' });
+    }
+    
+    if (practice.studentId !== req.student.id) {
+      return res.status(403).json({ message: 'You are not authorized to delete this record' });
     }
 
     await Practice.delete(practiceId);
