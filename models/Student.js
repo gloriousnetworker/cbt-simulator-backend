@@ -44,6 +44,10 @@ class Student {
       query = query.where('loginId', '==', filters.loginId);
     }
     
+    if (filters.nin) {
+      query = query.where('nin', '==', filters.nin);
+    }
+    
     if (filters.status) {
       query = query.where('status', '==', filters.status);
     }

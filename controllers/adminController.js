@@ -19,6 +19,15 @@ const removeUndefined = (obj) => {
   }, {});
 };
 
+const validateNIN = (nin) => {
+  if (!nin) return { valid: true, message: null };
+  const ninRegex = /^\d{11}$/;
+  if (!ninRegex.test(nin)) {
+    return { valid: false, message: 'NIN must be exactly 11 digits' };
+  }
+  return { valid: true, message: null };
+};
+
 const getProfile = async (req, res) => {
   try {
     const { password, ...admin } = req.user;
@@ -175,7 +184,6 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // Check student limit based on subscription plan
     const limitCheck = await SubscriptionService.checkStudentLimit(req.user.id);
     if (!limitCheck.allowed) {
       return res.status(403).json({ 
@@ -190,6 +198,18 @@ const createStudent = async (req, res) => {
       return res.status(400).json({ 
         message: 'Missing required fields: firstName, lastName, and class are required' 
       });
+    }
+    
+    if (nin) {
+      const ninValidation = validateNIN(nin);
+      if (!ninValidation.valid) {
+        return res.status(400).json({ message: ninValidation.message });
+      }
+      
+      const existingStudentsWithNIN = await Student.findAll({ nin });
+      if (existingStudentsWithNIN.length > 0) {
+        return res.status(400).json({ message: 'NIN already exists in the system' });
+      }
     }
     
     const school = await School.findById(req.user.schoolId);
@@ -254,7 +274,8 @@ const createStudent = async (req, res) => {
       credentials: {
         loginId: finalLoginId,
         email,
-        password: '123456'
+        password: '123456',
+        nin: student.nin || null
       },
       subscription: {
         limit: limitCheck.limit,
@@ -315,6 +336,22 @@ const updateStudent = async (req, res) => {
     
     if (!student || student.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const { nin } = req.body;
+    
+    if (nin) {
+      const ninValidation = validateNIN(nin);
+      if (!ninValidation.valid) {
+        return res.status(400).json({ message: ninValidation.message });
+      }
+      
+      if (nin !== student.nin) {
+        const existingStudentsWithNIN = await Student.findAll({ nin });
+        if (existingStudentsWithNIN.length > 0) {
+          return res.status(400).json({ message: 'NIN already exists in the system' });
+        }
+      }
     }
     
     const updateData = removeUndefined(req.body);
