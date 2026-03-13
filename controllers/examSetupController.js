@@ -61,22 +61,41 @@ const createExamSetup = async (req, res) => {
     let totalQuestions = 0;
     let calculatedTotalMarks = 0;
     
+    // For each subject in the exam
     for (const subjectConfig of subjects) {
       const subject = await Subject.findById(subjectConfig.subjectId);
       if (!subject) {
         return res.status(404).json({ message: `Subject not found: ${subjectConfig.subjectId}` });
       }
       
+      // CRITICAL FIX: Filter questions by schoolId to only get questions created by this admin's school
       const questions = await Question.findAll({
         subjectId: subjectConfig.subjectId,
         class: studentClass,
-        mode: 'exam'
+        mode: 'exam',
+        schoolId: req.user.schoolId // Add schoolId filter to ensure only this school's questions
       });
       
+      console.log(`Found ${questions.length} questions for subject ${subject.name} in school ${req.user.schoolId}`);
+      
+      if (questions.length === 0) {
+        return res.status(400).json({ 
+          message: `No questions available for subject: ${subject.name} in class ${studentClass}. Please create questions first.` 
+        });
+      }
+      
+      if (subjectConfig.questionCount && subjectConfig.questionCount > questions.length) {
+        return res.status(400).json({ 
+          message: `Subject ${subject.name} only has ${questions.length} questions available, but you requested ${subjectConfig.questionCount}` 
+        });
+      }
+      
+      // Select questions (randomly if requested)
       let selectedQuestions = [];
       if (subjectConfig.questionCount && subjectConfig.questionCount > 0) {
-        const shuffled = questions.sort(() => 0.5 - Math.random());
-        selectedQuestions = shuffled.slice(0, Math.min(subjectConfig.questionCount, questions.length));
+        // Shuffle and take the requested number of questions
+        const shuffled = [...questions].sort(() => 0.5 - Math.random());
+        selectedQuestions = shuffled.slice(0, subjectConfig.questionCount);
       } else {
         selectedQuestions = questions;
       }
@@ -88,7 +107,7 @@ const createExamSetup = async (req, res) => {
         subjectName: subject.name,
         questionCount: selectedQuestions.length,
         totalMarks: subjectMarks,
-        questions: selectedQuestions.map(q => q.id)
+        questions: selectedQuestions.map(q => q.id) // Store only the question IDs that belong to this school
       });
       
       totalQuestions += selectedQuestions.length;
@@ -162,10 +181,12 @@ const getExamSetupById = async (req, res) => {
     
     const subjects = [];
     for (const subjectConfig of exam.subjects) {
+      // CRITICAL FIX: When getting questions for preview, also filter by schoolId
       const questions = await Question.findAll({
         subjectId: subjectConfig.subjectId,
         class: exam.class,
-        mode: 'exam'
+        mode: 'exam',
+        schoolId: req.user.schoolId // Add schoolId filter
       });
       
       subjects.push({
@@ -223,15 +244,24 @@ const updateExamSetup = async (req, res) => {
           return res.status(404).json({ message: `Subject not found: ${subjectConfig.subjectId}` });
         }
         
+        // CRITICAL FIX: When updating, also filter by schoolId
         const questions = await Question.findAll({
           subjectId: subjectConfig.subjectId,
           class: updateData.class || exam.class,
-          mode: 'exam'
+          mode: 'exam',
+          schoolId: req.user.schoolId // Add schoolId filter
         });
+        
+        if (subjectConfig.questionCount && subjectConfig.questionCount > questions.length) {
+          return res.status(400).json({ 
+            message: `Subject ${subject.name} only has ${questions.length} questions available, but you requested ${subjectConfig.questionCount}` 
+          });
+        }
         
         let selectedQuestions = [];
         if (subjectConfig.questionCount && subjectConfig.questionCount > 0) {
-          selectedQuestions = questions.slice(0, Math.min(subjectConfig.questionCount, questions.length));
+          const shuffled = [...questions].sort(() => 0.5 - Math.random());
+          selectedQuestions = shuffled.slice(0, subjectConfig.questionCount);
         } else {
           selectedQuestions = questions;
         }
@@ -239,6 +269,7 @@ const updateExamSetup = async (req, res) => {
         const subjectMarks = selectedQuestions.reduce((sum, q) => sum + (q.marks || 1), 0);
         recalculatedTotalMarks += subjectMarks;
         subjectConfig.totalMarks = subjectMarks;
+        subjectConfig.questions = selectedQuestions.map(q => q.id);
       }
       updateData.totalMarks = recalculatedTotalMarks;
     }
@@ -491,19 +522,14 @@ const startStudentExam = async (req, res) => {
     
     let allQuestions = [];
     for (const subjectConfig of examSetup.subjects) {
+      // CRITICAL FIX: When getting questions for students, ensure we only get questions from the correct school
+      // We don't need to filter by schoolId here because the examSetup already contains the question IDs
+      // that were saved when the exam was created (which were filtered by schoolId at creation time)
       const questions = await Question.findAll({
-        subjectId: subjectConfig.subjectId,
-        class: examSetup.class,
-        mode: 'exam'
+        ids: subjectConfig.questions // Get only the specific questions that were saved in the exam setup
       });
       
-      const subjectQuestions = questions.filter(q => subjectConfig.questions.includes(q.id));
-      
-      if (examSetup.shuffleQuestions) {
-        subjectQuestions.sort(() => 0.5 - Math.random());
-      }
-      
-      allQuestions = [...allQuestions, ...subjectQuestions];
+      allQuestions = [...allQuestions, ...questions];
     }
     
     if (examSetup.shuffleQuestions) {
