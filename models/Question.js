@@ -20,42 +20,48 @@ class Question {
   }
 
   static async findAll(filters = {}) {
-    let query = db.collection(this.collection);
-    
-    if (filters.subjectId) {
-      query = query.where('subjectId', '==', filters.subjectId);
-    }
-    
-    if (filters.schoolId) {
-      query = query.where('schoolId', '==', filters.schoolId);
-    }
-    
-    if (filters.class) {
-      if (filters.class === 'General') {
-        query = query.where('class', '==', 'General');
-      } else {
-        query = query.where('class', '==', filters.class);
-      }
-    }
-    
-    if (filters.examType) {
-      query = query.where('examType', '==', filters.examType);
-    }
-    
-    if (filters.difficulty) {
-      query = query.where('difficulty', '==', filters.difficulty);
-    }
-    
-    if (filters.mode) {
-      query = query.where('mode', '==', filters.mode);
-    }
-    
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+  let query = db.collection(this.collection);
+  
+  if (filters.subjectId) {
+    query = query.where('subjectId', '==', filters.subjectId);
   }
+  
+  if (filters.schoolId) {
+    query = query.where('schoolId', '==', filters.schoolId);
+  }
+  
+  if (filters.class) {
+    if (filters.class === 'General') {
+      query = query.where('class', '==', 'General');
+    } else {
+      query = query.where('class', '==', filters.class);
+    }
+  }
+  
+  if (filters.examType) {
+    query = query.where('examType', '==', filters.examType);
+  }
+  
+  if (filters.difficulty) {
+    query = query.where('difficulty', '==', filters.difficulty);
+  }
+  
+  if (filters.mode) {
+    query = query.where('mode', '==', filters.mode);
+  }
+  
+  const snapshot = await query.get();
+  let questions = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+  
+  if (filters.ids && filters.ids.length > 0) {
+    questions = questions.filter(q => filters.ids.includes(q.id));
+  }
+  
+  return questions;
+}
 
   static async findBySubject(subjectId) {
     const snapshot = await db.collection(this.collection)

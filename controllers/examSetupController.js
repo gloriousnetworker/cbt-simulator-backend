@@ -556,6 +556,8 @@ const startStudentExam = async (req, res) => {
     
     await Student.setCurrentExam(studentId, exam.id);
     
+    const endTime = new Date(now.getTime() + examSetup.duration * 60 * 1000);
+    
     res.status(201).json({
       message: 'Exam started',
       exam: {
@@ -563,10 +565,11 @@ const startStudentExam = async (req, res) => {
         examSetupId: examSetupId,
         title: examSetup.title,
         subjects: examSetup.subjects,
-        duration: exam.duration,
-        questionCount: exam.questionCount,
+        duration: examSetup.duration,
+        questionCount: examQuestions.length,
         questions: examQuestions,
         startTime: exam.startTime,
+        endTime: endTime,
         status: exam.status,
         instructions: examSetup.instructions
       }
