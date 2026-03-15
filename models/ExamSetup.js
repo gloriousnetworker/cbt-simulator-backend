@@ -1,4 +1,3 @@
-// models/ExamSetup.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -149,7 +148,6 @@ class ExamSetup {
 
   static async getActiveExamsForStudent(studentId, schoolId, studentClass) {
     const now = new Date();
-    const Question = require('./Question');
     
     const snapshot = await db.collection(this.collection)
       .where('schoolId', '==', schoolId)
@@ -175,27 +173,6 @@ class ExamSetup {
           const studentExamSnapshot = await studentExamRef.get();
           
           if (studentExamSnapshot.empty) {
-            // Get questions for this exam
-            const questions = [];
-            for (const subjectConfig of exam.subjects) {
-              for (const questionId of subjectConfig.questions) {
-                const question = await Question.findById(questionId);
-                if (question) {
-                  // Remove correctAnswer from question for client
-                  const { correctAnswer, ...questionWithoutAnswer } = question;
-                  questions.push({
-                    ...questionWithoutAnswer,
-                    subjectName: subjectConfig.subjectName
-                  });
-                }
-              }
-            }
-            
-            // Shuffle questions if enabled
-            if (exam.shuffleQuestions) {
-              questions.sort(() => 0.5 - Math.random());
-            }
-            
             activeExams.push({
               id: exam.id,
               title: exam.title,
@@ -206,8 +183,7 @@ class ExamSetup {
               totalMarks: exam.totalMarks,
               passMark: exam.passMark,
               instructions: exam.instructions,
-              questions: questions,
-              questionCount: questions.length,
+              questionCount: exam.subjects.reduce((total, subject) => total + (subject.questionCount || 0), 0),
               startDateTime: exam.startDateTime,
               endDateTime: exam.endDateTime,
               shuffleQuestions: exam.shuffleQuestions,

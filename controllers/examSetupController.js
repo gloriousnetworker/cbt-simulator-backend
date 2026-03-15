@@ -513,11 +513,13 @@ const startStudentExam = async (req, res) => {
     
     let allQuestions = [];
     for (const subjectConfig of examSetup.subjects) {
-      const questions = await Question.findAll({
-        ids: subjectConfig.questions
-      });
-      
-      allQuestions = [...allQuestions, ...questions];
+      if (subjectConfig.questions && subjectConfig.questions.length > 0) {
+        const questions = await Question.findAll({
+          ids: subjectConfig.questions
+        });
+        
+        allQuestions = [...allQuestions, ...questions];
+      }
     }
     
     if (examSetup.shuffleQuestions) {
