@@ -1,6 +1,6 @@
 const TokenService = require('../services/tokenService');
 const User = require('../models/User');
-const Student = require('../models/Student'); // Add this import
+const Student = require('../models/Student');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -16,7 +16,6 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
     
-    // Check if the token belongs to a student
     if (decoded.role === 'student') {
       const student = await Student.findById(decoded.id);
       
@@ -28,12 +27,9 @@ const authenticate = async (req, res, next) => {
         return res.status(401).json({ message: 'Account is not active' });
       }
       
-      // Attach student to req.user for consistency
       req.user = student;
-      // Ensure the role is set correctly
       req.user.role = 'student';
     } else {
-      // Handle regular users (admin, super_admin, etc.)
       const user = await User.findById(decoded.id);
       
       if (!user) {
@@ -45,6 +41,9 @@ const authenticate = async (req, res, next) => {
       }
       
       req.user = user;
+      if (!req.user.role) {
+        req.user.role = decoded.role || 'admin';
+      }
     }
     
     next();
@@ -69,7 +68,6 @@ const authorize = (...roles) => {
 };
 
 const checkAdminSubscription = async (req, res, next) => {
-  // Skip subscription check for non-admin users (including students)
   if (req.user.role !== 'admin') {
     return next();
   }
