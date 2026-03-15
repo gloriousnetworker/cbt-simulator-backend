@@ -107,25 +107,30 @@ const getQuestionById = async (req, res) => {
   try {
     const { questionId } = req.params;
     
-    console.log('Fetching question by ID:', questionId);
-    
     if (!questionId) {
       return res.status(400).json({ message: 'Question ID is required' });
     }
     
+    console.log('Fetching question with ID:', questionId);
+    console.log('User school ID:', req.user.schoolId);
+    
     const question = await Question.findById(questionId);
     
     if (!question) {
+      console.log('Question not found for ID:', questionId);
       return res.status(404).json({ message: 'Question not found' });
     }
     
+    console.log('Question found, schoolId:', question.schoolId);
+    
     if (question.schoolId !== req.user.schoolId) {
+      console.log('School ID mismatch - question belongs to different school');
       return res.status(404).json({ message: 'Question not found' });
     }
     
     res.json({ question });
   } catch (error) {
-    console.error('Get question by ID error details:', {
+    console.error('Get question by ID error:', {
       message: error.message,
       stack: error.stack,
       questionId: req.params.questionId
