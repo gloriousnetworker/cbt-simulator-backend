@@ -107,6 +107,12 @@ const getQuestionById = async (req, res) => {
   try {
     const { questionId } = req.params;
     
+    console.log('Fetching question by ID:', questionId);
+    
+    if (!questionId) {
+      return res.status(400).json({ message: 'Question ID is required' });
+    }
+    
     const question = await Question.findById(questionId);
     
     if (!question) {
@@ -119,7 +125,11 @@ const getQuestionById = async (req, res) => {
     
     res.json({ question });
   } catch (error) {
-    console.error('Get question by ID error:', error);
+    console.error('Get question by ID error details:', {
+      message: error.message,
+      stack: error.stack,
+      questionId: req.params.questionId
+    });
     res.status(500).json({ message: 'Internal server error' });
   }
 };

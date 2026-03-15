@@ -74,14 +74,36 @@ class Question {
   }
 
   static async findById(id) {
+  try {
+    if (!id) {
+      console.error('Question.findById called with no id');
+      return null;
+    }
+    
+    console.log('Question.findById fetching:', id);
     const doc = await db.collection(this.collection).doc(id).get();
-    if (!doc.exists) return null;
+    
+    if (!doc.exists) {
+      console.log('Question.findById: No document found for id:', id);
+      return null;
+    }
+    
+    const data = doc.data();
+    console.log('Question.findById: Found document for id:', id);
     
     return {
       id: doc.id,
-      ...doc.data()
+      ...data
     };
+  } catch (error) {
+    console.error('Question.findById error:', {
+      id,
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
   }
+}
 
   static async update(id, updateData) {
     const questionRef = db.collection(this.collection).doc(id);
