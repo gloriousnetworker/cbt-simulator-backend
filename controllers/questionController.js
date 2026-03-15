@@ -1,4 +1,3 @@
-// controllers/questionController.js
 const Question = require('../models/Question');
 const Subject = require('../models/Subject');
 
@@ -39,7 +38,6 @@ const createQuestion = async (req, res) => {
       });
     }
 
-    // Validate that correctAnswer exists in options
     if (!options.includes(correctAnswer)) {
       return res.status(400).json({ 
         message: 'Correct answer must be one of the provided options' 
@@ -80,7 +78,7 @@ const createQuestion = async (req, res) => {
     });
   } catch (error) {
     console.error('Create question error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -101,7 +99,7 @@ const getAllQuestions = async (req, res) => {
     res.json({ questions });
   } catch (error) {
     console.error('Get all questions error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -111,14 +109,18 @@ const getQuestionById = async (req, res) => {
     
     const question = await Question.findById(questionId);
     
-    if (!question || question.schoolId !== req.user.schoolId) {
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    if (question.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Question not found' });
     }
     
     res.json({ question });
   } catch (error) {
     console.error('Get question by ID error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -128,11 +130,14 @@ const updateQuestion = async (req, res) => {
     
     const question = await Question.findById(questionId);
     
-    if (!question || question.schoolId !== req.user.schoolId) {
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    if (question.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Question not found' });
     }
 
-    // If updating correctAnswer, validate it exists in options
     if (req.body.correctAnswer && req.body.options) {
       if (!req.body.options.includes(req.body.correctAnswer)) {
         return res.status(400).json({ 
@@ -156,7 +161,7 @@ const updateQuestion = async (req, res) => {
     });
   } catch (error) {
     console.error('Update question error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -166,7 +171,11 @@ const deleteQuestion = async (req, res) => {
     
     const question = await Question.findById(questionId);
     
-    if (!question || question.schoolId !== req.user.schoolId) {
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    
+    if (question.schoolId !== req.user.schoolId) {
       return res.status(404).json({ message: 'Question not found' });
     }
     
@@ -180,7 +189,7 @@ const deleteQuestion = async (req, res) => {
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
     console.error('Delete question error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -214,7 +223,6 @@ const bulkImportQuestions = async (req, res) => {
         continue;
       }
 
-      // Validate correctAnswer exists in options
       if (!q.options.includes(q.correctAnswer)) {
         errors.push({ index: i, message: 'Correct answer must be one of the options' });
         continue;
@@ -252,7 +260,7 @@ const bulkImportQuestions = async (req, res) => {
     });
   } catch (error) {
     console.error('Bulk import questions error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -262,5 +270,6 @@ module.exports = {
   getQuestionById,
   updateQuestion,
   deleteQuestion,
-  bulkImportQuestions
+  bulkImportQuestions,
+  removeUndefined
 };

@@ -1,4 +1,3 @@
-// models/Question.js
 const { db } = require('../config/firebase');
 const admin = require('firebase-admin');
 
@@ -49,6 +48,10 @@ class Question {
     
     if (filters.mode) {
       query = query.where('mode', '==', filters.mode);
+    }
+    
+    if (filters.ids && filters.ids.length > 0) {
+      query = query.where('id', 'in', filters.ids);
     }
     
     const snapshot = await query.get();
@@ -109,12 +112,16 @@ class Question {
     return snapshot.size;
   }
 
-  static async getRandomQuestions(subjectId, count, studentClass, mode) {
+  static async getRandomQuestions(subjectId, count, studentClass, mode, schoolId) {
     let query = db.collection(this.collection)
       .where('subjectId', '==', subjectId);
     
     if (mode) {
       query = query.where('mode', '==', mode);
+    }
+    
+    if (schoolId) {
+      query = query.where('schoolId', '==', schoolId);
     }
     
     const snapshot = await query.get();
@@ -123,7 +130,6 @@ class Question {
       ...doc.data()
     }));
     
-    // Filter questions that are either General class or match the student's class
     questions = questions.filter(q => 
       q.class === 'General' || q.class === studentClass
     );
