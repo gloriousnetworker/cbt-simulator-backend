@@ -89,37 +89,53 @@ class Question {
   }
 
   static async findById(id) {
-    try {
-      if (!id) {
-        console.error('Question.findById called with no id');
-        return null;
-      }
-      
-      console.log('Question.findById fetching:', id);
-      const docRef = db.collection(this.collection).doc(id);
-      const doc = await docRef.get();
-      
-      if (!doc.exists) {
-        console.log('Question.findById: No document found for id:', id);
-        return null;
-      }
-      
-      const data = doc.data();
-      console.log('Question.findById: Found document for id:', id);
-      
-      return {
-        id: doc.id,
-        ...data
-      };
-    } catch (error) {
-      console.error('Question.findById error:', {
-        id,
-        error: error.message,
-        stack: error.stack
-      });
-      throw error;
+  try {
+    console.log('📝 Question.findById called with:', { 
+      id, 
+      idType: typeof id,
+      idLength: id?.length 
+    });
+    
+    if (!id) {
+      console.error('❌ Question.findById called with no id');
+      return null;
     }
+    
+    // Try to get the document reference
+    const docRef = db.collection(this.collection).doc(id);
+    console.log('📝 Document reference created for path:', docRef.path);
+    
+    // Attempt to get the document
+    const doc = await docRef.get();
+    console.log('📝 Document get completed');
+    
+    if (!doc.exists) {
+      console.log('❌ Question.findById: No document exists for id:', id);
+      return null;
+    }
+    
+    const data = doc.data();
+    console.log('✅ Question.findById: Document found:', {
+      id: doc.id,
+      hasData: !!data,
+      fields: data ? Object.keys(data) : []
+    });
+    
+    return {
+      id: doc.id,
+      ...data
+    };
+  } catch (error) {
+    console.error('❌ Question.findById error:', {
+      id,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorCode: error.code,
+      errorStack: error.stack
+    });
+    throw error;
   }
+}
 
   static async update(id, updateData) {
     try {

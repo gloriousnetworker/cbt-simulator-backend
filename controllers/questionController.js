@@ -107,34 +107,61 @@ const getQuestionById = async (req, res) => {
   try {
     const { questionId } = req.params;
     
+    console.log('========== GET QUESTION BY ID DEBUG ==========');
+    console.log('1. Request params:', req.params);
+    console.log('2. Question ID received:', questionId);
+    console.log('3. Question ID type:', typeof questionId);
+    console.log('4. User from auth:', {
+      id: req.user?.id,
+      schoolId: req.user?.schoolId,
+      role: req.user?.role
+    });
+    
     if (!questionId) {
+      console.log('5. ERROR: No question ID provided');
       return res.status(400).json({ message: 'Question ID is required' });
     }
     
-    console.log('Fetching question with ID:', questionId);
-    console.log('User school ID:', req.user.schoolId);
-    
+    console.log('6. Attempting to fetch question from database...');
     const question = await Question.findById(questionId);
     
+    console.log('7. Database result:', question ? 'Question found' : 'Question not found');
+    if (question) {
+      console.log('8. Question details:', {
+        id: question.id,
+        schoolId: question.schoolId,
+        subjectId: question.subjectId,
+        question: question.question?.substring(0, 50) + '...'
+      });
+    }
+    
     if (!question) {
-      console.log('Question not found for ID:', questionId);
+      console.log('9. ERROR: Question not found in database for ID:', questionId);
       return res.status(404).json({ message: 'Question not found' });
     }
     
-    console.log('Question found, schoolId:', question.schoolId);
+    console.log('10. Checking school ID match...');
+    console.log('    Question schoolId:', question.schoolId);
+    console.log('    User schoolId:', req.user.schoolId);
     
     if (question.schoolId !== req.user.schoolId) {
-      console.log('School ID mismatch - question belongs to different school');
+      console.log('11. ERROR: School ID mismatch - access denied');
       return res.status(404).json({ message: 'Question not found' });
     }
+    
+    console.log('12. SUCCESS: Question found and authorized');
+    console.log('==============================================');
     
     res.json({ question });
   } catch (error) {
-    console.error('Get question by ID error:', {
-      message: error.message,
-      stack: error.stack,
-      questionId: req.params.questionId
-    });
+    console.error('========== GET QUESTION BY ID ERROR ==========');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error code:', error.code);
+    console.error('Request params:', req.params);
+    console.error('==============================================');
+    
     res.status(500).json({ message: 'Internal server error' });
   }
 };
